@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { User, RANKS, AvatarConfig, AvatarVoice, SessionResult, DetailedFeedback, MetricDetail } from '../types';
 import { 
   cancelUserSubscription, 
@@ -169,6 +169,39 @@ const SimpleRadarChart: React.FC<{ metrics: { label: string, score: number }[] }
 const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, onLogout, onAddCredits, onSubscribe, onUpdateProfile, onPartialUpdate }) => {
   const [activeTab, setActiveTab] = useState<'practice' | 'history' | 'profile' | 'feedback'>('practice');
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+  
+  // Filtros de Histórico
+  const [filterAvatar, setFilterAvatar] = useState<string>('all');
+  const [filterDate, setFilterDate] = useState<string>('');
+
+  // Lógica de Filtragem - Corrigida para considerar fuso horário local
+  const filteredHistory = useMemo(() => {
+    return history.filter(session => {
+      const matchesAvatar = filterAvatar === 'all' || session.avatarName === filterAvatar;
+      
+      // Converte a data ISO para o formato YYYY-MM-DD local para comparar com o input date
+      const sessionLocalDate = new Date(session.date).toLocaleDateString('en-CA'); // en-CA retorna YYYY-MM-DD
+      const matchesDate = !filterDate || sessionLocalDate === filterDate;
+      
+      return matchesAvatar && matchesDate;
+    });
+  }, [history, filterAvatar, filterDate]);
+
+  // Paginação Baseada em Dados Filtrados
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filteredHistory.length / itemsPerPage);
+  
+  const paginatedHistory = useMemo(() => {
+    return filteredHistory.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  }, [filteredHistory, currentPage]);
+
+  // Resetar página ao mudar filtros
+  useEffect(() => {
+    setCurrentPage(1);
+    setExpandedHistoryId(null);
+  }, [filterAvatar, filterDate]);
+
   const [profileForm, setProfileForm] = useState({ 
     name: user.name || '', 
     surname: user.surname || '',
@@ -218,11 +251,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
 
     setIsLoadingFeedback(true);
     try {
-      // 1. Tentar buscar feedback salvo no banco de dados primeiro
       const stored = await getStoredDetailedFeedback(user.id);
       
-      // Se tiver feedback salvo e a data for MAIOR OU IGUAL à data da última sessão, usar o cache
-      // Isso significa que o cache está atualizado. Se for MENOR, precisamos atualizar.
       if (stored && new Date(stored.lastDate).getTime() >= new Date(latestSession.date).getTime()) {
         setDetailedFeedback(stored.content);
         setLastEvaluatedSessionDate(stored.lastDate);
@@ -230,13 +260,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
         return;
       }
 
-      // 2. Se não houver cache ou se a data do cache for anterior (menor) que a última sessão, gerar novo com Gemini
       const feedback = await generateDetailedFeedback(latestSession.transcript, history);
       if (feedback) {
         setDetailedFeedback(feedback);
         setLastEvaluatedSessionDate(latestSession.date);
-        
-        // 3. Salvar o novo feedback no banco para a próxima vez
         await upsertDetailedFeedback(user.id, feedback, latestSession.date);
       }
     } catch (err) {
@@ -250,14 +277,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
     if (activeTab === 'feedback') {
       loadFeedback();
     }
-  }, [activeTab, history]);
+    // Reset da página ao trocar de aba (limpa filtros se desejar, ou apenas página)
+    if (activeTab !== 'history') {
+      setCurrentPage(1);
+      setExpandedHistoryId(null);
+    }
+  }, [activeTab]);
 
   const isSubscribed = !!user.subscription && user.subscription !== 'free' && user.subscription !== 'CANCELLED';
   const isPending = user.subscriptionStatus === 'PENDING';
   const isCancelled = user.subscription === 'CANCELLED' || user.subscriptionStatus === 'CANCELLED';
   const creditsInMinutes = Math.floor(Number(user.creditsRemaining || 0));
 
-  // Lógica de Patente e Progresso
   const currentPoints = user.points || 0;
   const currentRankIndex = RANKS.findIndex((r, idx) => {
     const nextRank = RANKS[idx + 1];
@@ -409,7 +440,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                     <h3 className="font-bold text-white text-lg">{isPending ? 'Pagamento em Processamento' : 'Problemas no pagamento'}</h3>
                     <p className="text-sm text-gray-300 max-w-2xl leading-relaxed">
                       {isPending 
-                        ? 'O seu pagamento ainda não foi processado ou não foi autorizado pela operadora do cartão. Aguarde a confirmação para liberar o acesso ilimitado ou vá em perfil, cancele essa assinatura e faça uma nova assinatura com novos dados de pagamento.' 
+                        ? 'O seu pagamento ainda não foi processado ou não foi autorizado pela operadora do cartão. Aguarde a confirmação para liberar o acesso ilimitado.' 
                         : 'Detectamos um problema no seu pagamento. Cancele e refaça a assinatura para normalizar.'}
                     </p>
                 </div>
@@ -491,72 +522,143 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
         )}
 
         {activeTab === 'history' && (
-          <div className="space-y-4 animate-fade-in">
-             {history.length === 0 ? (
+          <div className="space-y-6 animate-fade-in">
+             {/* Toolbar de Filtros */}
+             <div className="flex flex-col md:flex-row gap-4 bg-gray-800/50 p-4 rounded-2xl border border-gray-700 mb-2">
+                <div className="flex-1 space-y-1">
+                   <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest px-1">Avatar</label>
+                   <select 
+                      value={filterAvatar} 
+                      onChange={(e) => setFilterAvatar(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                   >
+                      <option value="all">Todos os Avatares</option>
+                      {AVATARS.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}
+                   </select>
+                </div>
+                <div className="flex-1 space-y-1">
+                   <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest px-1">Data</label>
+                   <input 
+                      type="date" 
+                      value={filterDate} 
+                      onChange={(e) => setFilterDate(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                   />
+                </div>
+                {(filterAvatar !== 'all' || filterDate !== '') && (
+                   <div className="flex items-end">
+                      <button 
+                         onClick={() => { setFilterAvatar('all'); setFilterDate(''); }}
+                         className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold rounded-xl transition-all h-[42px] whitespace-nowrap"
+                      >
+                         Limpar Filtros
+                      </button>
+                   </div>
+                )}
+             </div>
+
+             {filteredHistory.length === 0 ? (
                <div className="bg-gray-800 p-12 rounded-3xl border border-gray-700 text-center">
-                  <p className="text-gray-500">Você ainda não realizou nenhuma sessão.</p>
+                  <p className="text-gray-500">
+                     {history.length === 0 
+                        ? "Você ainda não realizou nenhuma sessão." 
+                        : "Nenhum resultado encontrado para os filtros selecionados."}
+                  </p>
                </div>
              ) : (
-               history.map((session, idx) => (
-                 <div key={idx} className="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden transition-all">
-                    <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                       <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-400 font-bold">
-                             {session.overallScore}
+               <>
+                 <div className="space-y-4">
+                   {paginatedHistory.map((session, idx) => {
+                     // Ajuste do índice para expansão correta em dados filtrados
+                     const actualIdx = (currentPage - 1) * itemsPerPage + idx;
+                     return (
+                       <div key={`${session.date}-${idx}`} className="bg-gray-800 rounded-2xl border border-gray-700 overflow-hidden transition-all">
+                          <div className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                             <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-blue-500/10 rounded-full flex items-center justify-center text-blue-400 font-bold">
+                                   {session.overallScore}
+                                </div>
+                                <div>
+                                   <h4 className="font-bold">Conversa com {session.avatarName}</h4>
+                                   <p className="text-xs text-gray-500">{new Date(session.date).toLocaleDateString('pt-BR')}</p>
+                                </div>
+                             </div>
+                             <button onClick={() => setExpandedHistoryId(expandedHistoryId === actualIdx ? null : actualIdx)} className={`p-2 hover:bg-gray-700 rounded-lg transition-colors ${expandedHistoryId === actualIdx ? 'rotate-180' : ''}`}>
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                             </button>
                           </div>
-                          <div>
-                             <h4 className="font-bold">Conversa com {session.avatarName}</h4>
-                             <p className="text-xs text-gray-500">{new Date(session.date).toLocaleDateString('pt-BR')}</p>
-                          </div>
+                          {expandedHistoryId === actualIdx && (
+                             <div className="px-6 pb-6 pt-2 border-t border-gray-700 bg-gray-900/30 animate-fade-in space-y-6">
+                                <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                                  <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-2 tracking-widest">Feedback da Sessão</h5>
+                                  <p className="text-sm text-gray-300 italic">"{session.feedback}"</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-3 gap-2">
+                                   <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Vocab</p><p className="font-bold text-xs">{session.vocabularyScore}</p></div>
+                                   <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Gram</p><p className="font-bold text-xs">{session.grammarScore}</p></div>
+                                   <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Pron</p><p className="font-bold text-xs">{session.pronunciationScore}</p></div>
+                                </div>
+
+                                <div className="border-t border-gray-700 pt-4">
+                                   <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-3 tracking-widest">Transcrição Completa</h5>
+                                   <div className="bg-gray-900/80 rounded-xl p-4 max-h-[500px] overflow-y-auto custom-scrollbar space-y-4 shadow-inner">
+                                      {session.transcript ? (
+                                         session.transcript.split('\n').filter(line => line.trim()).map((line, lIdx) => {
+                                            const isUser = line.toLowerCase().startsWith('user:');
+                                            const isAvatar = line.toLowerCase().startsWith('avatar:');
+                                            const text = line.replace(/^(User|Avatar): /i, '');
+                                            
+                                            if (!isUser && !isAvatar) return <p key={lIdx} className="text-[11px] text-gray-500 text-center py-1">{line}</p>;
+
+                                            return (
+                                               <div key={lIdx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                                                  <span className="text-[8px] text-gray-600 mb-0.5 uppercase font-black tracking-tighter">
+                                                     {isUser ? 'Você' : session.avatarName}
+                                                  </span>
+                                                  <div className={`text-xs px-4 py-2.5 rounded-2xl max-w-[90%] leading-relaxed ${isUser ? 'bg-blue-600/20 text-blue-100 border border-blue-500/20 rounded-tr-none' : 'bg-gray-800 text-gray-300 border border-gray-700 rounded-tl-none'}`}>
+                                                     {text}
+                                                  </div>
+                                               </div>
+                                            );
+                                         })
+                                      ) : (
+                                         <p className="text-gray-600 text-[10px] text-center italic">Transcrição indisponível para esta sessão.</p>
+                                      )}
+                                   </div>
+                                </div>
+                             </div>
+                          )}
                        </div>
-                       <button onClick={() => setExpandedHistoryId(expandedHistoryId === idx ? null : idx)} className={`p-2 hover:bg-gray-700 rounded-lg transition-colors ${expandedHistoryId === idx ? 'rotate-180' : ''}`}>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                     );
+                   })}
+                 </div>
+
+                 {/* Paginação */}
+                 {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-4 py-4">
+                       <button 
+                          onClick={() => { setCurrentPage(prev => Math.max(1, prev - 1)); setExpandedHistoryId(null); }}
+                          disabled={currentPage === 1}
+                          className="p-2 bg-gray-800 rounded-xl border border-gray-700 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                       >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+                       </button>
+                       <div className="flex items-center gap-2">
+                          <span className="text-xs font-black uppercase text-gray-500 tracking-widest">Página</span>
+                          <span className="bg-blue-600 px-3 py-1 rounded-lg text-xs font-bold">{currentPage}</span>
+                          <span className="text-xs font-black uppercase text-gray-500 tracking-widest">de {totalPages}</span>
+                       </div>
+                       <button 
+                          onClick={() => { setCurrentPage(prev => Math.min(totalPages, prev + 1)); setExpandedHistoryId(null); }}
+                          disabled={currentPage === totalPages}
+                          className="p-2 bg-gray-800 rounded-xl border border-gray-700 hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                       >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
                        </button>
                     </div>
-                    {expandedHistoryId === idx && (
-                       <div className="px-6 pb-6 pt-2 border-t border-gray-700 bg-gray-900/30 animate-fade-in space-y-6">
-                          <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                            <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-2 tracking-widest">Feedback da Sessão</h5>
-                            <p className="text-sm text-gray-300 italic">"{session.feedback}"</p>
-                          </div>
-                          
-                          <div className="grid grid-cols-3 gap-2">
-                             <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Vocab</p><p className="font-bold text-xs">{session.vocabularyScore}</p></div>
-                             <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Gram</p><p className="font-bold text-xs">{session.grammarScore}</p></div>
-                             <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Pron</p><p className="font-bold text-xs">{session.pronunciationScore}</p></div>
-                          </div>
-
-                          <div className="border-t border-gray-700 pt-4">
-                             <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-3 tracking-widest">Transcrição Completa</h5>
-                             <div className="bg-gray-900/80 rounded-xl p-4 max-h-[500px] overflow-y-auto custom-scrollbar space-y-4 shadow-inner">
-                                {session.transcript ? (
-                                   session.transcript.split('\n').filter(line => line.trim()).map((line, lIdx) => {
-                                      const isUser = line.toLowerCase().startsWith('user:');
-                                      const isAvatar = line.toLowerCase().startsWith('avatar:');
-                                      const text = line.replace(/^(User|Avatar): /i, '');
-                                      
-                                      if (!isUser && !isAvatar) return <p key={lIdx} className="text-[11px] text-gray-500 text-center py-1">{line}</p>;
-
-                                      return (
-                                         <div key={lIdx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                                            <span className="text-[8px] text-gray-600 mb-0.5 uppercase font-black tracking-tighter">
-                                               {isUser ? 'Você' : session.avatarName}
-                                            </span>
-                                            <div className={`text-xs px-4 py-2.5 rounded-2xl max-w-[90%] leading-relaxed ${isUser ? 'bg-blue-600/20 text-blue-100 border border-blue-500/20 rounded-tr-none' : 'bg-gray-800 text-gray-300 border border-gray-700 rounded-tl-none'}`}>
-                                               {text}
-                                            </div>
-                                         </div>
-                                      );
-                                   })
-                                ) : (
-                                   <p className="text-gray-600 text-[10px] text-center italic">Transcrição indisponível para esta sessão.</p>
-                                )}
-                             </div>
-                          </div>
-                       </div>
-                    )}
-                 </div>
-               ))
+                 )}
+               </>
              )}
           </div>
         )}
