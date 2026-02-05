@@ -459,22 +459,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
           </div>
         )}
 
-        {/* Banner de Incentivo à Assinatura (Exibido para todos os usuários Free) */}
-        {isFree && !isPending && !subscriptionErrorStatus && (
+        {/* Banner de Incentivo à Assinatura (Exibido para usuários Free ou Cancelados) */}
+        {(isFree || isCancelled) && !isPending && !subscriptionErrorStatus && (
           <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in shadow-xl">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z"></path></svg>
               </div>
               <div>
-                <h3 className="font-bold text-white text-lg">Pratique sem limites!</h3>
+                <h3 className="font-bold text-white text-lg">{isCancelled ? 'Retome sua evolução!' : 'Pratique sem limites!'}</h3>
                 <p className="text-sm text-gray-300 max-w-2xl leading-relaxed">
-                  Tenha acesso ilimitado! Assine o Plano PRO agora e garanta 30 horas mensais de conversação por um valor especial.
+                  {isCancelled
+                    ? 'Sentimos sua falta! Assine novamente o Plano PRO para recuperar seu acesso ilimitado e continuar de onde parou.'
+                    : 'Tenha acesso ilimitado! Assine o Plano PRO agora e garanta 30 horas mensais de conversação por um valor especial.'}
                 </p>
               </div>
             </div>
             <button onClick={onSubscribe} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-8 py-3 rounded-2xl shadow-xl whitespace-nowrap transition-all active:scale-95">
-              Assinar agora
+              {isCancelled ? 'Reassinar agora' : 'Assinar agora'}
             </button>
           </div>
         )}
