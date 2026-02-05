@@ -459,8 +459,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
           </div>
         )}
 
-        {/* Banner de Incentivo à Assinatura (Para usuários Free sem crédito) */}
-        {isFree && hasNoCredits && !isPending && !subscriptionErrorStatus && (
+        {/* Banner de Incentivo à Assinatura (Exibido para todos os usuários Free) */}
+        {isFree && !isPending && !subscriptionErrorStatus && (
           <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-500/30 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in shadow-xl">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center">
@@ -469,7 +469,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
               <div>
                 <h3 className="font-bold text-white text-lg">Pratique sem limites!</h3>
                 <p className="text-sm text-gray-300 max-w-2xl leading-relaxed">
-                  Seus créditos gratuitos acabaram. Assine o Plano PRO agora e tenha acesso a 30 horas mensais de conversação por um valor especial!
+                  Tenha acesso ilimitado! Assine o Plano PRO agora e garanta 30 horas mensais de conversação por um valor especial.
                 </p>
               </div>
             </div>
