@@ -17,18 +17,18 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [isFinishing, setIsFinishing] = useState(false);
-  const [showTranscript, setShowTranscript] = useState(false); 
+  const [showTranscript, setShowTranscript] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  
-  const [remainingSeconds, setRemainingSeconds] = useState(Number(user.creditsRemaining || 0) * 60);
+
+  const [remainingSeconds, setRemainingSeconds] = useState(Math.max(0, Math.floor(Number(user.creditsRemaining || 0) * 60)));
   const [showCreditModal, setShowCreditModal] = useState(false);
-  
+
   const userVideoRef = useRef<HTMLVideoElement>(null);
   const userStreamRef = useRef<MediaStream | null>(null);
   const fullTranscriptRef = useRef<string>("");
-  const lastSyncMinutesRef = useRef<number>(Number(user.creditsRemaining || 0));
-  
+  const lastSyncMinutesRef = useRef<number>(Math.floor(Number(user.creditsRemaining || 0)));
+
   const avatarImageRef = useRef<HTMLImageElement>(null);
 
   const [currentTurnText, setCurrentTurnText] = useState("");
@@ -44,14 +44,14 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
 
   const handleTranscriptUpdate = useCallback((text: string, isUser: boolean) => {
     const role = isUser ? 'user' : 'model';
-    
+
     if (currentTurnRoleRef.current && currentTurnRoleRef.current !== role) {
-       const turnHeader = currentTurnRoleRef.current === 'user' ? 'User: ' : 'Avatar: ';
-       fullTranscriptRef.current += `${turnHeader}${currentTurnTextRef.current}\n`;
-       setMessages(prev => [...prev, { role: currentTurnRoleRef.current!, text: currentTurnTextRef.current, timestamp: Date.now() }]);
-       setCurrentTurnText(text);
+      const turnHeader = currentTurnRoleRef.current === 'user' ? 'User: ' : 'Avatar: ';
+      fullTranscriptRef.current += `${turnHeader}${currentTurnTextRef.current}\n`;
+      setMessages(prev => [...prev, { role: currentTurnRoleRef.current!, text: currentTurnTextRef.current, timestamp: Date.now() }]);
+      setCurrentTurnText(text);
     } else {
-       setCurrentTurnText(prev => prev + text);
+      setCurrentTurnText(prev => prev + text);
     }
     setCurrentTurnRole(role);
   }, []);
@@ -80,17 +80,17 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   useEffect(() => {
     if (!hasStarted || !isConnected || isFinishing || showCreditModal) return;
     const timer = setInterval(() => {
-        setRemainingSeconds(prev => {
-            const newVal = prev - 1;
-            if (newVal <= 0) {
-                clearInterval(timer);
-                onUpdateCredits(0);
-                handleFinish(0);
-                setShowCreditModal(true);
-                return 0;
-            }
-            return newVal;
-        });
+      setRemainingSeconds(prev => {
+        const newVal = prev - 1;
+        if (newVal <= 0) {
+          clearInterval(timer);
+          onUpdateCredits(0);
+          handleFinish(0);
+          setShowCreditModal(true);
+          return 0;
+        }
+        return newVal;
+      });
     }, 1000);
     return () => clearInterval(timer);
   }, [hasStarted, isConnected, isFinishing, showCreditModal, onUpdateCredits]);
@@ -98,25 +98,25 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   useEffect(() => {
     if (!hasStarted || isFinishing) return;
     const syncInterval = setInterval(() => {
-        const currentMinutes = Math.floor(remainingSeconds / 60);
-        if (Math.abs(lastSyncMinutesRef.current - currentMinutes) >= 1) {
-            onUpdateCredits(currentMinutes);
-            lastSyncMinutesRef.current = currentMinutes;
-        }
+      const currentMinutes = Math.floor(remainingSeconds / 60);
+      if (Math.abs(lastSyncMinutesRef.current - currentMinutes) >= 1) {
+        onUpdateCredits(currentMinutes);
+        lastSyncMinutesRef.current = currentMinutes;
+      }
     }, 15000);
     return () => clearInterval(syncInterval);
   }, [remainingSeconds, hasStarted, isFinishing, onUpdateCredits]);
 
   useEffect(() => {
     if (hasStarted && userVideoRef.current && userStreamRef.current) {
-        userVideoRef.current.srcObject = userStreamRef.current;
+      userVideoRef.current.srcObject = userStreamRef.current;
     }
   }, [hasStarted]);
 
   useEffect(() => {
     if (!isTalking || !analyserNode) {
-       if (avatarImageRef.current) avatarImageRef.current.style.transform = 'scale(1)';
-       return;
+      if (avatarImageRef.current) avatarImageRef.current.style.transform = 'scale(1)';
+      return;
     }
     let rafId: number;
     const bufferLength = analyserNode.frequencyBinCount;
@@ -124,7 +124,7 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
     const updateAnimation = () => {
       analyserNode.getByteFrequencyData(dataArray);
       let sum = 0;
-      for(let i = 0; i < 20; i++) sum += dataArray[i];
+      for (let i = 0; i < 20; i++) sum += dataArray[i];
       const energy = (sum / 20) / 255;
       const scale = 1 + energy * 0.15;
       if (avatarImageRef.current) avatarImageRef.current.style.transform = `scale(${scale})`;
@@ -135,39 +135,40 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   }, [isTalking, analyserNode]);
 
   const handleStart = async () => {
-      if (user.creditsRemaining <= 0) {
-        setShowCreditModal(true);
-        return;
-      }
-      setLocalError(null);
-      setHasStarted(true);
-      setStartTime(Date.now());
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        userStreamRef.current = stream;
-        connect();
-      } catch (err: any) {
-        setLocalError("Câmera ou microfone não detectados.");
-        setHasStarted(false);
-      }
+    if (remainingSeconds <= 0) {
+      alert("Seus créditos acabaram. Adicione créditos para começar!");
+      onBuyCredits();
+      return;
+    }
+    setLocalError(null);
+    setHasStarted(true);
+    setStartTime(Date.now());
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      userStreamRef.current = stream;
+      connect();
+    } catch (err: any) {
+      setLocalError("Câmera ou microfone não detectados.");
+      setHasStarted(false);
+    }
   };
 
   const handleFinish = async (forcedCredits?: number) => {
     if (isFinishing) return;
     setIsFinishing(true);
-    
+
     const finalMinutes = typeof forcedCredits === 'number' ? forcedCredits : Math.max(0, Math.floor(remainingSeconds / 60));
-    
+
     await disconnect();
-    
+
     if (userStreamRef.current) {
-        userStreamRef.current.getTracks().forEach(track => track.stop());
+      userStreamRef.current.getTracks().forEach(track => track.stop());
     }
-    
+
     let finalTranscript = fullTranscriptRef.current;
     if (currentTurnRoleRef.current && currentTurnTextRef.current) {
-       const turnHeader = currentTurnRoleRef.current === 'user' ? 'User: ' : 'Avatar: ';
-       finalTranscript += `${turnHeader}${currentTurnTextRef.current}\n`;
+      const turnHeader = currentTurnRoleRef.current === 'user' ? 'User: ' : 'Avatar: ';
+      finalTranscript += `${turnHeader}${currentTurnTextRef.current}\n`;
     }
 
     const duration = startTime ? (Date.now() - startTime) / 1000 : 0;
@@ -193,81 +194,81 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
       <div className="relative flex-1 flex flex-col min-w-0">
         <header className="absolute top-0 left-0 right-0 z-20 p-4 sm:p-6 flex justify-between items-start pointer-events-none">
           <div className="bg-black/60 backdrop-blur-xl px-4 py-2.5 rounded-full border border-white/10 flex items-center gap-3 pointer-events-auto shadow-2xl">
-              <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_12px_#22c55e]' : (isReconnecting ? 'bg-yellow-500 animate-pulse' : 'bg-red-500')}`}></div>
-              <span className={`text-sm font-mono font-black ${remainingSeconds < 60 ? 'text-red-400' : 'text-green-400'}`}>
-                {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}
-              </span>
+            <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_12px_#22c55e]' : (isReconnecting ? 'bg-yellow-500 animate-pulse' : 'bg-red-500')}`}></div>
+            <span className={`text-sm font-mono font-black ${remainingSeconds < 60 ? 'text-red-400' : 'text-green-400'}`}>
+              {Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}
+            </span>
           </div>
           <div className="flex gap-2 pointer-events-auto">
-              <button onClick={() => setShowTranscript(!showTranscript)} className={`p-3 rounded-full backdrop-blur-md transition-all ${showTranscript ? 'bg-blue-600' : 'bg-black/40 border border-white/10'}`}>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
-              </button>
-              <button onClick={() => handleFinish()} className="bg-red-600 hover:bg-red-700 p-3 rounded-full text-white shadow-lg transition-transform active:scale-95">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-              </button>
+            <button onClick={() => setShowTranscript(!showTranscript)} className={`p-3 rounded-full backdrop-blur-md transition-all ${showTranscript ? 'bg-blue-600' : 'bg-black/40 border border-white/10'}`}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg>
+            </button>
+            <button onClick={() => handleFinish()} className="bg-red-600 hover:bg-red-700 p-3 rounded-full text-white shadow-lg transition-transform active:scale-95">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
           </div>
         </header>
 
         <div className="flex-1 flex flex-col items-center justify-center relative bg-gradient-to-b from-gray-800 to-gray-950">
-            <div className="relative w-52 h-52 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[32rem] lg:h-[32rem] rounded-full overflow-hidden border-4 border-white/10 shadow-2xl bg-gray-800">
-                <img ref={avatarImageRef} src={avatar.avatarImage} alt={avatar.name} className="w-full h-full object-cover animate-alive" />
-            </div>
-            
-            <div className="mt-8 h-12 flex flex-col items-center">
-              {statusMessage && (
-                <div className="bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/5 animate-fade-in shadow-xl">
-                  <p className="text-sm font-medium text-blue-100 tracking-wide flex items-center gap-2">
-                    {(isConnected && !isTalking && !isFinishing) || isReconnecting ? (
-                       <span className="flex gap-1">
-                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></span>
-                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
-                       </span>
-                    ) : null}
-                    {statusMessage}
-                  </p>
-                </div>
-              )}
-              {error && <p className="text-red-400 text-xs mt-2 animate-shake">{error}</p>}
-            </div>
+          <div className="relative w-52 h-52 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[32rem] lg:h-[32rem] rounded-full overflow-hidden border-4 border-white/10 shadow-2xl bg-gray-800">
+            <img ref={avatarImageRef} src={avatar.avatarImage} alt={avatar.name} className="w-full h-full object-cover animate-alive" />
+          </div>
+
+          <div className="mt-8 h-12 flex flex-col items-center">
+            {statusMessage && (
+              <div className="bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/5 animate-fade-in shadow-xl">
+                <p className="text-sm font-medium text-blue-100 tracking-wide flex items-center gap-2">
+                  {(isConnected && !isTalking && !isFinishing) || isReconnecting ? (
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></span>
+                      <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                      <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                    </span>
+                  ) : null}
+                  {statusMessage}
+                </p>
+              </div>
+            )}
+            {error && <p className="text-red-400 text-xs mt-2 animate-shake">{error}</p>}
+          </div>
         </div>
 
         {!hasStarted && (
-            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                <div className="bg-gray-800 p-8 rounded-3xl shadow-2xl border border-gray-700 max-w-sm w-full text-center">
-                    <img src={avatar.avatarImage} className="w-24 h-24 mx-auto mb-4 rounded-full border-4 border-blue-500" />
-                    <h2 className="text-2xl font-bold mb-2">Praticar com {avatar.name}</h2>
-                    <p className="text-gray-400 text-sm mb-6">{avatar.description}</p>
-                    <button onClick={handleStart} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold transition-all active:scale-95">Iniciar Conversa</button>
-                    <button onClick={handleCancelWithSync} className="mt-4 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest">Cancelar</button>
-                </div>
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-gray-800 p-8 rounded-3xl shadow-2xl border border-gray-700 max-w-sm w-full text-center">
+              <img src={avatar.avatarImage} className="w-24 h-24 mx-auto mb-4 rounded-full border-4 border-blue-500" />
+              <h2 className="text-2xl font-bold mb-2">Praticar com {avatar.name}</h2>
+              <p className="text-gray-400 text-sm mb-6">{avatar.description}</p>
+              <button onClick={handleStart} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold transition-all active:scale-95">Iniciar Conversa</button>
+              <button onClick={handleCancelWithSync} className="mt-4 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest">Cancelar</button>
             </div>
+          </div>
         )}
       </div>
 
       {showTranscript && (
-         <div className="w-80 h-full bg-gray-900 border-l border-white/10 flex flex-col shadow-2xl z-40 animate-slide-in-right">
-            <div className="p-4 border-b border-white/10 flex justify-between items-center">
-               <h3 className="font-bold text-xs uppercase tracking-widest">Transcrição</h3>
-               <button onClick={() => setShowTranscript(false)} className="text-white/50 hover:text-white p-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-               </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-               {messages.map((msg, idx) => (
-                  <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                     <span className="text-[9px] text-gray-500 mb-1 uppercase font-black">{msg.role === 'user' ? 'VOCÊ' : avatar.name}</span>
-                     <div className={`max-w-[90%] rounded-2xl px-3 py-2 text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200 border border-gray-700'}`}>{msg.text}</div>
-                  </div>
-               ))}
-               {currentTurnText && (
-                   <div className={`flex flex-col ${currentTurnRole === 'user' ? 'items-end' : 'items-start'}`}>
-                      <span className="text-[9px] text-gray-500 mb-1 uppercase font-black">{currentTurnRole === 'user' ? 'VOCÊ' : avatar.name}</span>
-                       <div className="max-w-[90%] rounded-2xl px-3 py-2 text-sm bg-blue-600/50 italic">{currentTurnText}...</div>
-                   </div>
-               )}
-            </div>
-         </div>
+        <div className="w-80 h-full bg-gray-900 border-l border-white/10 flex flex-col shadow-2xl z-40 animate-slide-in-right">
+          <div className="p-4 border-b border-white/10 flex justify-between items-center">
+            <h3 className="font-bold text-xs uppercase tracking-widest">Transcrição</h3>
+            <button onClick={() => setShowTranscript(false)} className="text-white/50 hover:text-white p-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <span className="text-[9px] text-gray-500 mb-1 uppercase font-black">{msg.role === 'user' ? 'VOCÊ' : avatar.name}</span>
+                <div className={`max-w-[90%] rounded-2xl px-3 py-2 text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-200 border border-gray-700'}`}>{msg.text}</div>
+              </div>
+            ))}
+            {currentTurnText && (
+              <div className={`flex flex-col ${currentTurnRole === 'user' ? 'items-end' : 'items-start'}`}>
+                <span className="text-[9px] text-gray-500 mb-1 uppercase font-black">{currentTurnRole === 'user' ? 'VOCÊ' : avatar.name}</span>
+                <div className="max-w-[90%] rounded-2xl px-3 py-2 text-sm bg-blue-600/50 italic">{currentTurnText}...</div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
