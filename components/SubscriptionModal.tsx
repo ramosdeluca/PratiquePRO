@@ -12,7 +12,7 @@ interface SubscriptionModalProps {
 }
 
 const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, onSuccess, onPartialUpdate }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(1); 
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [cpf, setCpf] = useState(user.cpf || '');
   const [error, setError] = useState<string | null>(null);
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
@@ -40,7 +40,7 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, on
     try {
       const checkoutData = await generateSubscriptionCheckout({
         name: `${user.name} ${user.surname}`,
-        email: user.email, 
+        email: user.email,
         cpf: cleanCpf,
         value: SUBSCRIPTION_PRICE,
         customerIdAsaas: user.customerIdAsaas
@@ -59,15 +59,15 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, on
       setInvoiceUrl(url);
 
       if (user.id) {
-        const statsUpdate: Partial<User> = { 
+        const statsUpdate: Partial<User> = {
           subscription: subscriptionId || 'PENDING',
           subscriptionStatus: 'PENDING',
           customerIdAsaas: custumerIdAsaas,
-          cpf: cleanCpf 
+          cpf: cleanCpf
         };
         await updateUserStats(user.id, statsUpdate);
         if (onPartialUpdate) onPartialUpdate(statsUpdate);
-        await logPayment(user.id, pid, SUBSCRIPTION_PRICE, SUBSCRIPTION_MINUTES, true, url);
+        await logPayment(user.id, pid, SUBSCRIPTION_PRICE, SUBSCRIPTION_MINUTES, true, url, 'SUBSCRIPTION');
       }
 
       window.open(url, '_blank');
@@ -83,10 +83,10 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, on
     if (!paymentId || !user.id) return;
     setIsChecking(true);
     setError(null);
-    
+
     try {
       const currentStatus = await getPaymentStatusFromDB(paymentId);
-      
+
       if (currentStatus === 'RECEIVED' || currentStatus === 'CONFIRMED' || currentStatus === 'PAID') {
         // Atualizar o perfil com os 1800 minutos e status ACTIVE
         await updateUserStats(user.id, {
@@ -133,7 +133,7 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, on
               <div className="text-left space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase">CPF</label>
                 <input
-                  type="text" placeholder="000.000.000-00" 
+                  type="text" placeholder="000.000.000-00"
                   value={cpf} onChange={(e) => setCpf(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />
@@ -148,13 +148,13 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, on
           )}
 
           {step === 2 && (
-             <div className="py-12 flex flex-col items-center justify-center space-y-6 text-center">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <div>
-                    <p className="text-xl font-bold text-white">Abrindo Link de Pagamento...</p>
-                    <p className="text-gray-400 text-sm px-4">Uma nova aba deve abrir em instantes.</p>
-                </div>
-             </div>
+            <div className="py-12 flex flex-col items-center justify-center space-y-6 text-center">
+              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <div>
+                <p className="text-xl font-bold text-white">Abrindo Link de Pagamento...</p>
+                <p className="text-gray-400 text-sm px-4">Uma nova aba deve abrir em instantes.</p>
+              </div>
+            </div>
           )}
 
           {step === 3 && (

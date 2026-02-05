@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { generatePixCheckout, CheckoutResponse } from '../services/asaas';
-import { logPayment, getPaymentStatusFromDB, getUserProfile, updateUserStats } from '../services/supabase';
+import { logPayment, getPaymentRecord, getUserProfile, updateUserStats, markPaymentAsProcessed } from '../services/supabase';
 
 interface PaymentModalProps {
   user: User;
@@ -14,9 +14,9 @@ interface PaymentModalProps {
 const RATE_PER_MINUTE = 0.30;
 
 const PaymentModal: React.FC<PaymentModalProps> = ({ user, onClose, onSuccess, onPartialUpdate }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(1); 
-  const [amountBRL, setAmountBRL] = useState(5); 
-  const [cpf, setCpf] = useState(user.cpf || ''); // Preenchido com o CPF do perfil
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [amountBRL, setAmountBRL] = useState(5);
+  const [cpf, setCpf] = useState(user.cpf || '');
   const [qrCodeData, setQrCodeData] = useState<CheckoutResponse | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +42,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ user, onClose, onSuccess, o
     try {
       const checkoutData = await generatePixCheckout({
         name: `${user.name} ${user.surname}`,
-        email: user.email, 
+        email: user.email,
         cpf: cleanCpf,
         value: amountBRL,
         customerIdAsaas: user.customerIdAsaas
@@ -54,24 +54,18 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ user, onClose, onSuccess, o
 
       setPaymentId(checkoutData.id);
       setQrCodeData(checkoutData);
-      
-      // Persistência imediata do Customer ID do Asaas no banco de dados e no estado do App
+
       if (user.id && checkoutData.customerIdAsaas) {
-        console.log('[PaymentModal] Sincronizando Customer ID Asaas:', checkoutData.customerIdAsaas);
-        
-        // 1. Atualiza no Supabase (profiles)
         await updateUserStats(user.id, { customerIdAsaas: checkoutData.customerIdAsaas, cpf: cleanCpf });
-        
-        // 2. Notifica o App.tsx para atualizar o estado local 'user'
         if (onPartialUpdate) {
           onPartialUpdate({ customerIdAsaas: checkoutData.customerIdAsaas, cpf: cleanCpf });
         }
       }
-      
+
       if (user.id) {
-        await logPayment(user.id, checkoutData.id, amountBRL, minutesToBuy);
+        await logPayment(user.id, checkoutData.id, amountBRL, minutesToBuy, false, undefined, 'ONE_TIME');
       }
-      
+
       setStep(3);
     } catch (err: any) {
       console.error('[PaymentModal] Erro ao gerar checkout:', err);
@@ -84,22 +78,34 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ user, onClose, onSuccess, o
     if (!paymentId || !user.id) return;
     setIsChecking(true);
     setError(null);
-    
+
     try {
-      const currentStatus = await getPaymentStatusFromDB(paymentId);
-      
-      if (currentStatus === 'RECEIVED') {
-        const updatedProfile = await getUserProfile(user.id);
-        if (updatedProfile) {
-          onSuccess(updatedProfile);
+      // Busca o registro completo do pagamento no DB
+      const paymentRecord = await getPaymentRecord(paymentId);
+      const isConfirmed = paymentRecord && ['RECEIVED', 'CONFIRMED', 'PAID', 'RECEIVED_IN_CASH'].includes(String(paymentRecord.status).toUpperCase());
+
+      if (isConfirmed) {
+        // Se o pagamento ainda não foi processado pelo app (evita duplicidade de processamento no front)
+        if (!paymentRecord.processed) {
+          // NOTA: A soma dos créditos agora é realizada exclusivamente via TRIGGER no banco de dados.
+          // O front-end não deve mais calcular 'newCredits' ou chamar 'updateUserStats' para créditos.
+          await markPaymentAsProcessed(paymentId);
+        }
+
+        // Busca o perfil final atualizado para retornar ao App e exibir na UI.
+        // O trigger já terá atualizado os créditos antes de buscarmos o perfil.
+        const finalProfile = await getUserProfile(user.id);
+        if (finalProfile) {
+          onSuccess(finalProfile);
         } else {
           onClose();
           window.location.reload();
         }
       } else {
-        setError("Pagamento ainda não compensado. Aguarde 30 segundos e tente novamente.");
+        setError("Pagamento ainda não compensado. Aguarde um instante e tente novamente.");
       }
     } catch (err: any) {
+      console.error('[PaymentModal] Erro ao verificar pagamento:', err);
       setError("Erro ao verificar status no servidor.");
     } finally {
       setIsChecking(false);
@@ -131,12 +137,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ user, onClose, onSuccess, o
           {step === 1 && (
             <div className="space-y-6 animate-fade-in">
               <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-700 text-center">
-                 <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Valor da Recarga</p>
-                 <span className="text-4xl font-black text-green-400">R$ {amountBRL.toFixed(2)}</span>
-                 <p className="text-blue-300 text-sm mt-2">Equivale a ~{minutesToBuy} minutos</p>
+                <p className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Valor da Recarga</p>
+                <span className="text-4xl font-black text-green-400">R$ {amountBRL.toFixed(2)}</span>
+                <p className="text-blue-300 text-sm mt-2">Equivale a ~{minutesToBuy} minutos</p>
               </div>
 
-              <input 
+              <input
                 type="range" min="5" max="500" step="5" value={amountBRL}
                 onChange={(e) => setAmountBRL(Number(e.target.value))}
                 className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
@@ -145,8 +151,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ user, onClose, onSuccess, o
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase">CPF do Titular</label>
                 <input
-                  type="text" 
-                  placeholder="000.000.000-00" 
+                  type="text"
+                  placeholder="000.000.000-00"
                   value={cpf}
                   onChange={(e) => setCpf(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
@@ -165,26 +171,26 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ user, onClose, onSuccess, o
           )}
 
           {step === 2 && (
-             <div className="py-20 flex flex-col items-center justify-center space-y-4">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-gray-300">Gerando cobrança PIX...</p>
-             </div>
+            <div className="py-20 flex flex-col items-center justify-center space-y-4">
+              <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-gray-300">Gerando cobrança PIX...</p>
+            </div>
           )}
 
           {step === 3 && qrCodeData && (
             <div className="space-y-6 animate-fade-in">
               <div className="bg-white p-4 rounded-2xl mx-auto w-fit shadow-2xl">
-                 {qrCodeData.encodedImage ? (
-                    <img 
-                      src={getQrCodeSrc(qrCodeData.encodedImage)} 
-                      alt="QR Code PIX" 
-                      className="w-48 h-48 mx-auto" 
-                    />
-                 ) : (
-                    <div className="w-48 h-48 flex items-center justify-center text-gray-400 text-center text-xs bg-gray-100 rounded-lg p-4">
-                       QR Code Visual não disponível.<br/>Utilize o botão "Copiar Código".
-                    </div>
-                 )}
+                {qrCodeData.encodedImage ? (
+                  <img
+                    src={getQrCodeSrc(qrCodeData.encodedImage)}
+                    alt="QR Code PIX"
+                    className="w-48 h-48 mx-auto"
+                  />
+                ) : (
+                  <div className="w-48 h-48 flex items-center justify-center text-gray-400 text-center text-xs bg-gray-100 rounded-lg p-4">
+                    QR Code Visual não disponível.<br />Utilize o botão "Copiar Código".
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">

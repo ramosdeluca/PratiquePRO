@@ -51,7 +51,7 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
       points: Number(profileData.points || 0),
       sessionsCompleted: Number(profileData.sessions_completed || 0),
       joinedDate: profileData.joined_date,
-      creditsRemaining: Number(profileData.credits_remaining || 0), 
+      creditsRemaining: Number(profileData.credits_remaining || 0),
       creditsTotal: Number(profileData.credits_total || 0),
       customerIdAsaas: profileData.customer_id_asaas,
       subscription: profileData.subscription,
@@ -68,8 +68,8 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
 export const updateUserProfile = async (userId: string, data: { name: string, surname: string, phone?: string }) => {
   const { error } = await supabase
     .from('profiles')
-    .update({ 
-      name: data.name, 
+    .update({
+      name: data.name,
       surname: data.surname,
       phone: data.phone
     })
@@ -98,7 +98,7 @@ export const saveSession = async (userId: string, session: SessionResult) => {
 export const updateUserStats = async (userId: string, updates: Partial<User>) => {
   const dbUpdates: any = {};
   if (updates.points !== undefined) dbUpdates.points = updates.points;
-  if (updates.creditsRemaining !== undefined) dbUpdates.credits_remaining = updates.creditsRemaining; 
+  if (updates.creditsRemaining !== undefined) dbUpdates.credits_remaining = updates.creditsRemaining;
   if (updates.creditsTotal !== undefined) dbUpdates.credits_total = updates.creditsTotal;
   if (updates.rank !== undefined) dbUpdates.rank = updates.rank;
   if (updates.sessionsCompleted !== undefined) dbUpdates.sessions_completed = updates.sessionsCompleted;
@@ -132,7 +132,15 @@ export const getUserHistory = async (userId: string): Promise<SessionResult[]> =
   }));
 };
 
-export const logPayment = async (userId: string, asaasId: string, amount: number, minutes: number, isSubscription: boolean = false, urlInvoice?: string) => {
+export const logPayment = async (
+  userId: string,
+  asaasId: string,
+  amount: number,
+  minutes: number,
+  isSubscription: boolean = false,
+  urlInvoice?: string,
+  paymentType: 'ONE_TIME' | 'SUBSCRIPTION' = 'ONE_TIME'
+) => {
   await supabase.from('payments').insert([{
     user_id: userId,
     asaas_id: asaasId,
@@ -141,7 +149,8 @@ export const logPayment = async (userId: string, asaasId: string, amount: number
     status: 'PENDING',
     processed: false,
     subscription: isSubscription,
-    url_invoice: urlInvoice
+    url_invoice: urlInvoice,
+    type: paymentType
   }]);
 };
 
@@ -149,6 +158,17 @@ export const getPaymentStatusFromDB = async (asaasId: string): Promise<string | 
   const { data, error } = await supabase.from('payments').select('status').eq('asaas_id', asaasId).single();
   if (error) return null;
   return data?.status || null;
+};
+
+export const getPaymentRecord = async (asaasId: string): Promise<any | null> => {
+  const { data, error } = await supabase.from('payments').select('*').eq('asaas_id', asaasId).single();
+  if (error) return null;
+  return data;
+};
+
+export const markPaymentAsProcessed = async (asaasId: string): Promise<boolean> => {
+  const { error } = await supabase.from('payments').update({ processed: true }).eq('asaas_id', asaasId);
+  return !error;
 };
 
 export const getPendingSubscriptionPayment = async (userId: string): Promise<any | null> => {
@@ -181,8 +201,8 @@ export const getLatestSubscriptionPayment = async (userId: string): Promise<any 
 };
 
 export const cancelUserSubscription = async (userId: string) => {
-    const { error } = await supabase.from('profiles').update({ subscription_status: 'CANCELLED' }).eq('id', userId);
-    return !error;
+  const { error } = await supabase.from('profiles').update({ subscription_status: 'CANCELLED' }).eq('id', userId);
+  return !error;
 };
 
 /**
@@ -211,6 +231,6 @@ export const upsertDetailedFeedback = async (userId: string, content: DetailedFe
       last_session_date: lastDate,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' });
-  
+
   return !error;
 };
