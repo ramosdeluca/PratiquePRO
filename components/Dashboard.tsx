@@ -169,6 +169,7 @@ const SimpleRadarChart: React.FC<{ metrics: { label: string, score: number }[] }
 const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, onLogout, onAddCredits, onSubscribe, onUpdateProfile, onPartialUpdate }) => {
   const [activeTab, setActiveTab] = useState<'practice' | 'history' | 'profile' | 'feedback'>('practice');
   const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
+  const [showRankList, setShowRankList] = useState(false); // Default hidden
 
   // Filtros de Histórico
   const [filterAvatar, setFilterAvatar] = useState<string>('all');
@@ -486,10 +487,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
             <h3 className="text-gray-400 text-xs uppercase mb-1">Pontos Totais</h3>
             <p className="text-4xl font-extrabold text-yellow-400">{currentPoints}</p>
           </div>
-          <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 flex flex-col justify-between">
+          <div
+            onClick={() => setShowRankList(!showRankList)}
+            className="bg-gray-800 p-6 rounded-2xl border border-gray-700 flex flex-col justify-between cursor-pointer hover:border-blue-500/50 transition-colors group relative"
+          >
             <div>
-              <h3 className="text-gray-400 text-xs uppercase mb-1">Sua Patente</h3>
-              <p className="text-2xl font-bold">{currentRank.name}</p>
+              <div className="flex justify-between items-start">
+                <h3 className="text-gray-400 text-xs uppercase mb-1">Sua Patente</h3>
+                <svg className={`w-4 h-4 text-gray-500 transition-transform ${showRankList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+              <p className="text-2xl font-bold group-hover:text-blue-400 transition-colors">{currentRank.name}</p>
             </div>
 
             <div className="mt-4">
@@ -519,6 +526,40 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
             <p className="text-4xl font-extrabold">{user.sessionsCompleted}</p>
           </div>
         </section>
+
+        {/* Rank Progression Section */}
+        {/* Rank Progression Section - Compact */}
+        {showRankList && (
+          <section className="bg-gray-800 p-3 rounded-xl border border-gray-700 animate-fade-in">
+            <h3 className="text-gray-400 text-[10px] font-bold uppercase mb-2 tracking-widest">Jornada de Evolução</h3>
+            <div className="relative">
+              <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
+                {RANKS.map((rank, idx) => {
+                  const isAchieved = currentPoints >= rank.minPoints;
+                  const isCurrent = currentRank.name === rank.name;
+                  const isNext = nextRank?.name === rank.name;
+
+                  return (
+                    <div key={rank.name} className={`relative flex flex-col items-center md:items-start p-2 rounded-lg border transition-all ${isCurrent ? 'bg-blue-600/10 border-blue-500/50 z-10' : isAchieved ? 'bg-gray-800/50 border-transparent opacity-60' : 'bg-transparent border-transparent opacity-40'}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1.5 z-10 border ${isCurrent ? 'bg-blue-600 border-blue-400 text-white' : isAchieved ? 'bg-green-600/20 border-green-500/50 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-600'}`}>
+                        {isAchieved && !isCurrent ? (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                        ) : (
+                          <span className="text-[10px] font-bold">{idx + 1}</span>
+                        )}
+                      </div>
+
+                      <h4 className={`font-bold text-xs ${isCurrent ? 'text-blue-400' : isAchieved ? 'text-gray-300' : 'text-gray-500'}`}>{rank.name}</h4>
+                      <p className="text-[9px] text-gray-500 font-medium">{rank.minPoints} pts</p>
+
+                      {isCurrent && <div className="mt-1 text-[8px] px-1.5 py-px bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full font-bold uppercase tracking-wide">Atual</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
 
         <div className="flex flex-wrap gap-4 border-b border-gray-700 pb-2">
           <button onClick={() => setActiveTab('practice')} className={`pb-2 text-lg font-medium transition-all ${activeTab === 'practice' ? 'text-blue-400 border-b-2 border-blue-400' : 'text-gray-400 hover:text-gray-200'}`}>Praticar</button>
