@@ -1,5 +1,5 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { createClient } from '@supabase/supabase-js';
 import { User, SessionResult, DetailedFeedback } from '../types';
 
 const supabaseUrl = (process.env.SUPABASE_URL || 'https://ebjihooaxlqulzrlyoyc.supabase.co').trim();
@@ -57,7 +57,8 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
       subscription: profileData.subscription,
       subscriptionStatus: profileData.subscription_status,
       cpf: profileData.cpf,
-      phone: profileData.phone
+      phone: profileData.phone,
+      termsAcceptedAt: profileData.terms_accepted_at
     } as User;
   } catch (err) {
     console.error('[Supabase] Erro ao carregar perfil:', err);
@@ -107,6 +108,7 @@ export const updateUserStats = async (userId: string, updates: Partial<User>) =>
   if (updates.subscriptionStatus !== undefined) dbUpdates.subscription_status = updates.subscriptionStatus;
   if (updates.cpf !== undefined) dbUpdates.cpf = updates.cpf;
   if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+  if (updates.termsAcceptedAt !== undefined) dbUpdates.terms_accepted_at = updates.termsAcceptedAt;
   if ((updates as any).name) dbUpdates.name = (updates as any).name;
   if ((updates as any).surname) dbUpdates.surname = (updates as any).surname;
   if ((updates as any).username) dbUpdates.username = (updates as any).username;
@@ -122,9 +124,9 @@ export const getUserHistory = async (userId: string): Promise<SessionResult[]> =
     avatarName: s.avatar_name,
     overallScore: s.overall_score,
     vocabularyScore: s.vocabulary_score,
-    grammar_score: s.grammar_score,
+    grammarScore: s.grammar_score,
     pronunciationScore: s.pronunciation_score,
-    fluency_rating: s.fluency_rating,
+    fluencyRating: s.fluency_rating,
     feedback: s.feedback,
     durationSeconds: s.duration_seconds,
     transcript: s.transcript,

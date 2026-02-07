@@ -1,5 +1,7 @@
 
 import React, { useState } from 'react';
+import TermsModal from './TermsModal';
+import { TermsContent, PrivacyContent } from './LegalContent';
 import { User } from '../types';
 import { supabase, getUserProfile, getEmailByUsername, updateUserStats } from '../services/supabase';
 
@@ -12,7 +14,7 @@ type AuthMode = 'login' | 'register' | 'reset';
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [loading, setLoading] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -23,9 +25,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     cpf: '',
     phone: '',
   });
-  
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Terms and Privacy State
+  const [showTerms, setShowTerms] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -81,6 +88,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       return;
     }
 
+    if (!termsAccepted) {
+      setError("Você deve aceitar os Termos de Uso e Política de Privacidade para criar a conta.");
+      setLoading(false);
+      return;
+    }
+
     const cleanCpf = formData.cpf.replace(/\D/g, '');
     if (cleanCpf.length !== 11) {
       setError("CPF deve conter exatamente 11 dígitos.");
@@ -118,7 +131,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     if (data.user) {
       setSuccess("Conta criada com sucesso! Sincronizando dados...");
-      
+
       // 2. Gravação EXPLÍCITA na tabela profiles para garantir que CPF, Telefone e CRÉDITOS sejam salvos
       try {
         await updateUserStats(data.user.id, {
@@ -128,7 +141,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           creditsTotal: 10,
           name: formData.name,
           surname: formData.surname,
-          username: formData.username.toLowerCase()
+          username: formData.username.toLowerCase(),
+          termsAcceptedAt: new Date().toISOString()
         } as any);
       } catch (err) {
         console.warn("[Login] Erro ao forçar gravação no profile", err);
@@ -183,6 +197,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <input name="username" type="text" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="E-mail ou Usuário" value={formData.username} onChange={handleInputChange} disabled={loading} />
               <input name="password" type="password" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Senha" value={formData.password} onChange={handleInputChange} disabled={loading} />
               <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl shadow-lg transition-all disabled:opacity-50">{loading ? "Entrando..." : "Entrar"}</button>
+
+              <div className="flex justify-center gap-4 text-xs text-gray-500 mt-4">
+                <button type="button" onClick={() => setShowTerms(true)} className="hover:text-gray-300 transition-colors">Termos de Uso</button>
+                <span>|</span>
+                <button type="button" onClick={() => setShowPrivacy(true)} className="hover:text-gray-300 transition-colors">Política de Privacidade</button>
+              </div>
             </form>
           )}
 
@@ -202,6 +222,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <input name="password" type="password" required className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-xl outline-none text-sm" placeholder="Senha" value={formData.password} onChange={handleInputChange} />
                 <input name="confirmPassword" type="password" required className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-xl outline-none text-sm" placeholder="Confirmar" value={formData.confirmPassword} onChange={handleInputChange} />
               </div>
+              <div className="flex items-start gap-2 text-sm text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded bg-gray-700 border-gray-600 text-blue-600 focus:ring-blue-500"
+                />
+                <label>
+                  Ao criar a conta, você concorda com os <button type="button" onClick={() => setShowTerms(true)} className="text-blue-400 hover:text-blue-300 underline">Termos de Uso</button> e <button type="button" onClick={() => setShowPrivacy(true)} className="text-blue-400 hover:text-blue-300 underline">Política de Privacidade</button>.
+                </label>
+              </div>
+
               <button type="submit" disabled={loading} className="w-full py-4 bg-green-600 hover:bg-green-500 font-bold rounded-xl shadow-lg transition-all disabled:opacity-50">{loading ? "Processando..." : "Criar Conta Agora"}</button>
             </form>
           )}
@@ -211,8 +243,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <button onClick={() => setMode(mode === 'login' ? 'register' : 'login')} className="text-blue-400 text-sm font-bold">{mode === 'login' ? 'Criar nova conta' : 'Já tenho conta'}</button>
         </div>
       </div>
+
+      <TermsModal isOpen={showTerms} onClose={() => setShowTerms(false)} title="Termos de Uso">
+        <TermsContent />
+      </TermsModal>
+
+      <TermsModal isOpen={showPrivacy} onClose={() => setShowPrivacy(false)} title="Política de Privacidade">
+        <PrivacyContent />
+      </TermsModal>
     </div>
   );
 };
+
 
 export default Login;

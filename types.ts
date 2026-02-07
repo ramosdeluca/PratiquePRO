@@ -12,11 +12,12 @@ export interface User {
   joinedDate: string;
   creditsRemaining: number; // Saldo atual em minutos
   creditsTotal?: number; // Total histórico ou do plano atual
-  customerIdAsaas?: string; 
+  customerIdAsaas?: string;
   subscription?: string; // ID da assinatura
   subscriptionStatus?: string; // Status: ACTIVE, PENDING, etc.
-  cpf?: string; 
-  phone?: string; 
+  cpf?: string;
+  phone?: string;
+  termsAcceptedAt?: string; // ISO Timestamp provided at registration
 }
 
 export interface MetricDetail {
@@ -61,7 +62,7 @@ export interface SessionResult {
   overallScore: number;
   vocabularyScore: number;
   grammarScore: number;
-  pronunciationScore: number; 
+  pronunciationScore: number;
   fluencyRating: 'Beginner' | 'Intermediate' | 'Advanced' | 'Native';
   feedback: string;
   durationSeconds: number;
@@ -89,10 +90,10 @@ export interface AvatarConfig {
   accent: 'American' | 'British';
   voice: AvatarVoice;
   systemInstruction: string;
-  description: string; 
+  description: string;
   color: string;
   avatarImage: string;
-  videoUrl: string; 
+  videoUrl: string;
 }
 
 export const RANKS = [
