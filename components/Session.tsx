@@ -28,6 +28,7 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   const userStreamRef = useRef<MediaStream | null>(null);
   const fullTranscriptRef = useRef<string>("");
   const lastSyncMinutesRef = useRef<number>(Math.floor(Number(user.creditsRemaining || 0)));
+  const lastActivityRef = useRef<number>(Date.now());
 
   const avatarImageRef = useRef<HTMLImageElement>(null);
 
@@ -43,6 +44,13 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   }, [currentTurnText, currentTurnRole]);
 
   const handleTranscriptUpdate = useCallback((text: string, isUser: boolean) => {
+    // Ignore system prompts from the transcript and activity tracking
+    if (text.startsWith('(System:')) return;
+
+    // Ignore noise (very short or empty strings)
+    if (!text.trim()) return;
+
+    lastActivityRef.current = Date.now();
     const role = isUser ? 'user' : 'model';
 
     if (currentTurnRoleRef.current && currentTurnRoleRef.current !== role) {
@@ -56,7 +64,7 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
     setCurrentTurnRole(role);
   }, []);
 
-  const { connect, disconnect, isConnected, isTalking, isReconnecting, error: hookError, analyserNode } = useLiveAvatar({
+  const { connect, disconnect, isConnected, isTalking, isReconnecting, error: hookError, analyserNode, sendText } = useLiveAvatar({
     avatarConfig: avatar,
     onTranscriptUpdate: handleTranscriptUpdate
   });
@@ -133,6 +141,26 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
     updateAnimation();
     return () => cancelAnimationFrame(rafId);
   }, [isTalking, analyserNode]);
+
+  // Update last activity when avatar starts or stops talking
+  useEffect(() => {
+    lastActivityRef.current = Date.now();
+  }, [isTalking]);
+
+  // Idle timeout check
+  useEffect(() => {
+    if (!isConnected || isTalking || !hasStarted || isFinishing) return;
+
+    const idleTimer = setInterval(() => {
+      const secondsSinceActivity = (Date.now() - lastActivityRef.current) / 1000;
+      if (secondsSinceActivity > 8) {
+        sendText("Keep the conversation going: ask me something or suggest a new topic.");
+        lastActivityRef.current = Date.now();
+      }
+    }, 1000);
+
+    return () => clearInterval(idleTimer);
+  }, [isConnected, isTalking, hasStarted, isFinishing, sendText]);
 
   const handleStart = async () => {
     if (remainingSeconds <= 0) {

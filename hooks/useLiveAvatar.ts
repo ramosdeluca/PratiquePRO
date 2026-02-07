@@ -11,36 +11,36 @@ interface UseLiveAvatarProps {
 
 export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvatarProps) => {
   const [isConnected, setIsConnected] = useState(false);
-  const [isTalking, setIsTalking] = useState(false); 
+  const [isTalking, setIsTalking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
-  
+
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null); 
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  
+
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  
+
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const isConnectingRef = useRef(false);
-  const isActiveRef = useRef(false); 
+  const isActiveRef = useRef(false);
   const retryCountRef = useRef(0);
   const MAX_RETRIES = 5;
 
   const disconnect = useCallback(async (isManual = true) => {
-    isActiveRef.current = false; 
-    
+    isActiveRef.current = false;
+
     if (isManual) {
       retryCountRef.current = 0;
     }
 
     if (sessionPromiseRef.current) {
       const sessionToClose = sessionPromiseRef.current;
-      sessionPromiseRef.current = null; 
+      sessionPromiseRef.current = null;
       try {
         const session = await sessionToClose;
         session.close();
@@ -50,7 +50,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
     }
 
     sourcesRef.current.forEach(source => {
-      try { source.stop(); } catch(e) {}
+      try { source.stop(); } catch (e) { }
     });
     sourcesRef.current.clear();
     nextStartTimeRef.current = 0;
@@ -75,11 +75,11 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
 
     if (isManual) {
       if (inputAudioContextRef.current) {
-        inputAudioContextRef.current.close().catch(() => {});
+        inputAudioContextRef.current.close().catch(() => { });
         inputAudioContextRef.current = null;
       }
       if (outputAudioContextRef.current) {
-        outputAudioContextRef.current.close().catch(() => {});
+        outputAudioContextRef.current.close().catch(() => { });
         outputAudioContextRef.current = null;
       }
     }
@@ -103,7 +103,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         inputAudioContextRef.current = new AudioContextClass({ sampleRate: 16000 });
         outputAudioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
-        
+
         analyserRef.current = outputAudioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 512;
         const outputNode = outputAudioContextRef.current.createGain();
@@ -120,9 +120,9 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
 
       const apiKey = process.env.API_KEY;
       if (!apiKey) throw new Error("Chave de API ausente.");
-      
+
       const ai = new GoogleGenAI({ apiKey });
-      
+
       const currentSessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         config: {
@@ -147,22 +147,28 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             setIsReconnecting(false);
             isConnectingRef.current = false;
             retryCountRef.current = 0;
-            
+
             if (!inputAudioContextRef.current || !streamRef.current) return;
-            
+
             inputAudioContextRef.current.resume();
             sourceRef.current = inputAudioContextRef.current.createMediaStreamSource(streamRef.current);
             processorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
-            
+
             processorRef.current.onaudioprocess = (e) => {
               if (!isActiveRef.current) return;
               const inputData = e.inputBuffer.getChannelData(0);
               const pcmBlob = createBlob(inputData);
               currentSessionPromise.then(session => {
-                if (isActiveRef.current) session.sendRealtimeInput({ media: pcmBlob });
-              }).catch(() => {});
+                if (isActiveRef.current && session) {
+                  try {
+                    session.sendRealtimeInput({ media: pcmBlob });
+                  } catch (err) {
+                    // Ignore WebSocket closing errors during disconnect/instability
+                  }
+                }
+              }).catch(() => { });
             };
-            
+
             sourceRef.current.connect(processorRef.current);
             processorRef.current.connect(inputAudioContextRef.current.destination);
           },
@@ -202,7 +208,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             }
 
             if (message.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => { try { s.stop(); } catch(e) {} });
+              sourcesRef.current.forEach(s => { try { s.stop(); } catch (e) { } });
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
               setIsTalking(false);
@@ -233,7 +239,27 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
     }
   }, [avatarConfig, disconnect, onTranscriptUpdate]);
 
+  const sendText = useCallback((text: string) => {
+    if (sessionPromiseRef.current && isActiveRef.current) {
+      sessionPromiseRef.current.then(session => {
+        if (!session || !isActiveRef.current) return;
+
+        try {
+          if (typeof (session as any).sendClientContent === 'function') {
+            (session as any).sendClientContent({
+              turns: [{ role: 'user', parts: [{ text }] }]
+            });
+          } else if (typeof (session as any).send === 'function') {
+            (session as any).send({ parts: [{ text }] });
+          }
+        } catch (err) {
+          console.error("[useLiveAvatar] Error in sendText:", err);
+        }
+      });
+    }
+  }, []);
+
   useEffect(() => { return () => { disconnect(true); }; }, [disconnect]);
 
-  return { connect, disconnect, isConnected, isTalking, isReconnecting, error, analyserNode: analyserRef.current };
+  return { connect, disconnect, isConnected, isTalking, isReconnecting, error, analyserNode: analyserRef.current, sendText };
 };
