@@ -236,3 +236,20 @@ export const upsertDetailedFeedback = async (userId: string, content: DetailedFe
 
   return !error;
 };
+
+/**
+ * Authentication Helper Functions
+ */
+export const resetPasswordForEmail = async (email: string) => {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  });
+  return { success: !error, error };
+};
+
+export const updateUserPassword = async (newPassword: string) => {
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword
+  });
+  return { success: !error, error };
+};

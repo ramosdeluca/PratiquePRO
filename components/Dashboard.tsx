@@ -25,13 +25,31 @@ interface DashboardProps {
 
 const AVATARS: AvatarConfig[] = [
   {
+    name: 'Sarah',
+    accent: 'American',
+    voice: AvatarVoice.Kore,
+    systemInstruction: `PERSONALITY: Patient and kind American teacher for beginners.
+    STYLE: Simple, very slow, and clear.
+    VOCABULARY: Use very basic English. Avoid complex words or idioms.
+    RULE 1: ONLY if the user makes a grammar or vocabulary mistake, provide a "Correction:" and then say "Please repeat after me:" followed by the correct simple sentence. 
+    RULE 2: After asking the user to repeat, STOP your response immediately. Do not answer questions or continue the conversation in the same turn.
+    RULE 3: ALWAYS respond to the user's greetings or questions (like "How are you?") before asking a new question or changing the topic.
+    RULE 4: VARIETY: When you start the conversation or move to a new topic, vary your subjects (hobbies, weather, food, daily routine) to avoid repeating the same opener every session.
+    RULE 5: After a successful repetition in the next turn, provide 2 simple examples of that grammar point.
+    RULE 6: Keep sentences short.`,
+    description: 'Básico - Paciente e didática, Sarah ajuda iniciantes a ganhar confiança com vocabulário simples e repetição de frases.',
+    color: 'bg-blue-400',
+    avatarImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=800&auto=format&fit=crop',
+    videoUrl: ''
+  },
+  {
     name: 'Léo',
     accent: 'American',
     voice: AvatarVoice.Puck,
     systemInstruction: `PERSONALITY: Friendly American athlete. 
     STYLE: Casual and direct.
     RULE: NEVER repeat the user's sentence. If they speak well, just keep the chat going. Use "Correction:" only if they fail grammar completely.`,
-    description: 'Um cara legal que adora esportes. Ele conversa naturalmente e te ajuda a corrigir erros de forma direta e sem enrolação.',
+    description: 'Avançado - Um cara legal que adora esportes. Ele conversa naturalmente e te ajuda a corrigir erros de forma direta e sem enrolação.',
     color: 'bg-orange-500',
     avatarImage: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop',
     videoUrl: ''
@@ -43,7 +61,7 @@ const AVATARS: AvatarConfig[] = [
     systemInstruction: `PERSONALITY: Sophisticated professional mentor.
     STYLE: Warm, clear, and high-level.
     RULE: Do not parrot the user. Respond to the ideas, not the grammar, unless there is an error to fix using "Correction:".`,
-    description: 'Profissional e acolhedora. Ela foca no diálogo sobre carreira e é rigorosa em manter a conversa fluindo com qualidade.',
+    description: 'Avançado - Profissional e acolhedora. Ela foca no diálogo sobre carreira e é rigorosa em manter a conversa fluindo com qualidade.',
     color: 'bg-purple-500',
     avatarImage: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop',
     videoUrl: ''
@@ -55,7 +73,7 @@ const AVATARS: AvatarConfig[] = [
     systemInstruction: `PERSONALITY: Intelligent British gentleman.
     STYLE: Witty and polite.
     RULE: Strictly ignore correct sentences and move forward. Only use "Correction:" for significant blunders.`,
-    description: 'Sotaque britânico polido. Ele engaja em conversas inteligentes e corrige rigorosamente seus erros para você soar impecável.',
+    description: 'Avançado - Sotaque britânico polido. Ele engaja em conversas inteligentes e corrige rigorosamente seus erros para você soar impecável.',
     color: 'bg-emerald-600',
     avatarImage: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=800&auto=format&fit=crop',
     videoUrl: ''
@@ -67,7 +85,7 @@ const AVATARS: AvatarConfig[] = [
     systemInstruction: `PERSONALITY: Energetic, trendy Gen-Z friend.
     STYLE: Fast, lots of slang, very social.
     RULE: NO REPEATING. Just chat like we are on a call. Use "Correction:" if I say something really weird.`,
-    description: 'Energia pura! Ela fala como uma jovem nativa, usa gírias e não deixa passar nenhum erro de gramática enquanto fofoca.',
+    description: 'Avançado - Energia pura! Ela fala como uma jovem nativa, usa gírias e não deixa passar nenhum erro de gramática enquanto fofoca.',
     color: 'bg-rose-500',
     avatarImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=800&auto=format&fit=crop',
     videoUrl: ''

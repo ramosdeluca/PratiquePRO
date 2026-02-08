@@ -1,18 +1,18 @@
-
 import React, { useState } from 'react';
 import TermsModal from './TermsModal';
 import { TermsContent, PrivacyContent } from './LegalContent';
 import { User } from '../types';
-import { supabase, getUserProfile, getEmailByUsername, updateUserStats } from '../services/supabase';
+import { supabase, getUserProfile, getEmailByUsername, updateUserStats, resetPasswordForEmail, updateUserPassword } from '../services/supabase';
 
 interface LoginProps {
   onLogin: (user: User) => void;
+  initialMode?: 'login' | 'register' | 'reset' | 'updatePassword';
 }
 
-type AuthMode = 'login' | 'register' | 'reset';
+type AuthMode = 'login' | 'register' | 'reset' | 'updatePassword';
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [mode, setMode] = useState<AuthMode>('login');
+const Login: React.FC<LoginProps> = ({ onLogin, initialMode }) => {
+  const [mode, setMode] = useState<AuthMode>(initialMode || 'login');
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -24,6 +24,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     surname: '',
     cpf: '',
     phone: '',
+    resetEmail: '',
+    newPassword: '',
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -173,9 +175,48 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleResetRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("Função de redefinição via e-mail em desenvolvimento.");
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    const { success, error } = await resetPasswordForEmail(formData.resetEmail);
+
+    if (!success) {
+      setError(error?.message || "Erro ao solicitar redefinição.");
+    } else {
+      setSuccess("Link de redefinição enviado para seu e-mail!");
+    }
+    setLoading(false);
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    if (formData.newPassword !== formData.confirmPassword) {
+      setError("As senhas não coincidem.");
+      setLoading(false);
+      return;
+    }
+
+    const { success, error } = await updateUserPassword(formData.newPassword);
+
+    if (!success) {
+      setError(error?.message || "Erro ao atualizar senha.");
+    } else {
+      setSuccess("Senha atualizada com sucesso! Redirecionando...");
+      setTimeout(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const profile = await getUserProfile(user.id);
+          if (profile) onLogin(profile);
+        }
+      }, 2000);
+    }
+    setLoading(false);
   };
 
   return (
@@ -184,7 +225,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div className="text-center">
           <h2 className="text-3xl font-black text-blue-400">PratiquePRO</h2>
           <p className="mt-2 text-sm text-gray-400">
-            {mode === 'login' ? 'Bem-vindo de volta' : mode === 'register' ? 'Crie sua conta gratuita' : 'Redefinir senha'}
+            {mode === 'login' ? 'Bem-vindo de volta' : mode === 'register' ? 'Crie sua conta gratuita' : mode === 'reset' ? 'Redefinir senha' : 'Crie sua nova senha'}
           </p>
         </div>
 
@@ -195,7 +236,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {mode === 'login' && (
             <form className="space-y-6" onSubmit={handleLogin}>
               <input name="username" type="text" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="E-mail ou Usuário" value={formData.username} onChange={handleInputChange} disabled={loading} />
-              <input name="password" type="password" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Senha" value={formData.password} onChange={handleInputChange} disabled={loading} />
+              <div className="space-y-2">
+                <input name="password" type="password" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Senha" value={formData.password} onChange={handleInputChange} disabled={loading} />
+                <div className="text-right">
+                  <button type="button" onClick={() => { setMode('reset'); setError(null); setSuccess(null); }} className="text-xs text-blue-400 hover:text-blue-300">Esqueci minha senha</button>
+                </div>
+              </div>
               <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl shadow-lg transition-all disabled:opacity-50">{loading ? "Entrando..." : "Entrar"}</button>
 
               <div className="flex justify-center gap-4 text-xs text-gray-500 mt-4">
@@ -203,6 +249,25 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <span>|</span>
                 <button type="button" onClick={() => setShowPrivacy(true)} className="hover:text-gray-300 transition-colors">Política de Privacidade</button>
               </div>
+            </form>
+          )}
+
+          {mode === 'reset' && (
+            <form className="space-y-6" onSubmit={handleResetRequest}>
+              <p className="text-xs text-gray-400 px-1">Insira seu e-mail para receber um link de redefinição de senha.</p>
+              <input name="resetEmail" type="email" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Seu e-mail" value={formData.resetEmail} onChange={handleInputChange} disabled={loading} />
+              <button type="submit" disabled={loading} className="w-full py-4 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl shadow-lg transition-all disabled:opacity-50">{loading ? "Enviando..." : "Enviar link"}</button>
+              <button type="button" onClick={() => setMode('login')} className="w-full text-gray-400 text-sm hover:text-white transition-colors">Voltar para o Login</button>
+            </form>
+          )}
+
+          {mode === 'updatePassword' && (
+            <form className="space-y-6" onSubmit={handleUpdatePassword}>
+              <div className="space-y-4">
+                <input name="newPassword" type="password" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Nova senha" value={formData.newPassword} onChange={handleInputChange} disabled={loading} />
+                <input name="confirmPassword" type="password" required className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Confirmar nova senha" value={formData.confirmPassword} onChange={handleInputChange} disabled={loading} />
+              </div>
+              <button type="submit" disabled={loading} className="w-full py-4 bg-green-600 hover:bg-green-500 font-bold rounded-xl shadow-lg transition-all disabled:opacity-50">{loading ? "Atualizando..." : "Atualizar Senha"}</button>
             </form>
           )}
 
