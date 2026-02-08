@@ -32,7 +32,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         <div className="flex flex-col items-center gap-4">
           <button
             onClick={onStart}
-            className="bg-blue-600 hover:bg-blue-500 text-white text-lg font-bold px-10 py-5 rounded-2xl shadow-2xl shadow-blue-900/20 transition-all active:scale-95"
+            translate="no"
+            className="bg-blue-600 hover:bg-blue-500 text-white text-lg font-bold px-10 py-5 rounded-2xl shadow-2xl shadow-blue-900/20 transition-all active:scale-95 whitespace-nowrap"
           >
             Começar Teste Grátis
           </button>
@@ -227,7 +228,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           <h2 className="text-3xl md:text-5xl font-black text-white mb-8">Pronto para destravar sua fala?</h2>
           <button
             onClick={onStart}
-            className="bg-blue-600 hover:bg-blue-500 text-white text-lg font-bold px-12 py-5 rounded-2xl shadow-xl transition-all"
+            translate="no"
+            className="bg-blue-600 hover:bg-blue-500 text-white text-lg font-bold px-12 py-5 rounded-2xl shadow-xl transition-all whitespace-nowrap"
           >
             Começar Teste Grátis
           </button>

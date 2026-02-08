@@ -499,7 +499,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                 <h3 className="text-gray-400 text-xs uppercase mb-1">Sua Patente</h3>
                 <svg className={`w-4 h-4 text-gray-500 transition-transform ${showRankList ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
               </div>
-              <p className="text-2xl font-bold group-hover:text-blue-400 transition-colors">{currentRank.name}</p>
+              <p className="text-2xl font-bold group-hover:text-blue-400 transition-colors notranslate" translate="no">{currentRank.name}</p>
             </div>
 
             <div className="mt-4">
@@ -586,9 +586,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent opacity-60"></div>
                   </div>
                   <div className="p-6">
-                    <h3 className="text-xl font-bold mb-2">{avatar.name}</h3>
+                    <h3 className="text-xl font-bold mb-2 notranslate" translate="no">{avatar.name}</h3>
                     <p className="text-xs text-gray-400 line-clamp-2 h-8">{avatar.description}</p>
-                    <button className={`mt-4 w-full text-white py-3 rounded-xl text-sm font-bold shadow-lg transition-all ${isDisabled ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-500'}`}>
+                    <button className={`mt-4 w-full text-white py-3 rounded-xl text-sm font-bold shadow-lg transition-all whitespace-nowrap ${isDisabled ? 'bg-gray-600' : 'bg-blue-600 hover:bg-blue-500'}`}>
                       {isCancelled ? 'Assinar' : isPending ? 'Processando' : hasNoCredits ? 'Sem Créditos' : 'Praticar'}
                     </button>
                   </div>
@@ -656,7 +656,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                               {session.overallScore}
                             </div>
                             <div>
-                              <h4 className="font-bold">Conversa com {session.avatarName}</h4>
+                              <h4 className="font-bold notranslate" translate="no">Conversa com {session.avatarName}</h4>
                               <p className="text-xs text-gray-500">{new Date(session.date).toLocaleDateString('pt-BR')}</p>
                             </div>
                           </div>
@@ -690,7 +690,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
 
                                     return (
                                       <div key={lIdx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                                        <span className="text-[8px] text-gray-600 mb-0.5 uppercase font-black tracking-tighter">
+                                        <span className="text-[8px] text-gray-600 mb-0.5 uppercase font-black tracking-tighter notranslate" translate="no">
                                           {isUser ? 'Você' : session.avatarName}
                                         </span>
                                         <div className={`text-xs px-4 py-2.5 rounded-2xl max-w-[90%] leading-relaxed ${isUser ? 'bg-blue-600/20 text-blue-100 border border-blue-500/20 rounded-tr-none' : 'bg-gray-800 text-gray-300 border border-gray-700 rounded-tl-none'}`}>
