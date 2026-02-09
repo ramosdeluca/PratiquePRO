@@ -132,7 +132,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
         // Keep-alive: Oscilador silencioso para evitar que o Android suspenda o áudio
         const keepAliveOsc = outputAudioContextRef.current.createOscillator();
         const keepAliveGain = outputAudioContextRef.current.createGain();
-        keepAliveGain.gain.value = 0.0001; // Inaudível
+        keepAliveGain.gain.value = 0.001; // Quase inaudível, mas detectável pelo hardware
         keepAliveOsc.connect(keepAliveGain);
         keepAliveGain.connect(outputAudioContextRef.current.destination);
         keepAliveOsc.start();

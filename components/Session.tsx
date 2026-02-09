@@ -153,7 +153,7 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
 
     const idleTimer = setInterval(() => {
       const secondsSinceActivity = (Date.now() - lastActivityRef.current) / 1000;
-      if (secondsSinceActivity > 10) {
+      if (secondsSinceActivity > 8) {
         sendText("Keep the conversation going: ask me something or suggest a new topic.");
         lastActivityRef.current = Date.now();
       }
