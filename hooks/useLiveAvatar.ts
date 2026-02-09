@@ -186,24 +186,22 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             if (parts && outputAudioContextRef.current && analyserRef.current) {
               const ctx = outputAudioContextRef.current;
 
-              // Garante que o AudioContext esteja rodando antes de agendar (vital para mobile)
+              // Garante que o AudioContext esteja rodando
               if (ctx.state === 'suspended') {
                 await ctx.resume();
               }
 
-              const LOOKAHEAD_DELAY = 0.2; // 200ms de buffer para absorver jitter
+              const LOOKAHEAD_DELAY = 0.4; // Aumentado para 400ms para segurar oscilações maiores em mobile
 
               for (const part of parts) {
                 const base64Audio = part.inlineData?.data;
                 if (base64Audio && isActiveRef.current) {
                   setIsTalking(true);
 
-                  // Se não houver nada tocando, iniciamos com um pequeno delay planejado (lookahead)
-                  // Se já houver algo na fila, seguimos o fluxo.
-                  if (sourcesRef.current.size === 0) {
-                    nextStartTimeRef.current = ctx.currentTime + LOOKAHEAD_DELAY;
-                  } else {
-                    nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
+                  // Lógica de agendamento mais resiliente
+                  const currentTime = ctx.currentTime;
+                  if (sourcesRef.current.size === 0 || nextStartTimeRef.current < currentTime) {
+                    nextStartTimeRef.current = currentTime + LOOKAHEAD_DELAY;
                   }
 
                   try {
