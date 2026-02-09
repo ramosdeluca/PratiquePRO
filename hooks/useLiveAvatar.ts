@@ -25,6 +25,11 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
+  // Refs para Buffering de Resgate (Solução 1)
+  const preRollBufferRef = useRef<AudioBuffer[]>([]);
+  const preRollDurationRef = useRef<number>(0);
+  const isPlayingRef = useRef<boolean>(false);
+
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const isConnectingRef = useRef(false);
   const isActiveRef = useRef(false);
@@ -33,6 +38,9 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
 
   const disconnect = useCallback(async (isManual = true) => {
     isActiveRef.current = false;
+    isPlayingRef.current = false;
+    preRollBufferRef.current = [];
+    preRollDurationRef.current = 0;
 
     if (isManual) {
       retryCountRef.current = 0;
@@ -73,14 +81,13 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
       streamRef.current = null;
     }
 
+    // Solução 2: Não fecha o AudioContext, apenas suspende
     if (isManual) {
-      if (inputAudioContextRef.current) {
-        inputAudioContextRef.current.close().catch(() => { });
-        inputAudioContextRef.current = null;
+      if (inputAudioContextRef.current?.state !== 'closed') {
+        inputAudioContextRef.current?.suspend().catch(() => { });
       }
-      if (outputAudioContextRef.current) {
-        outputAudioContextRef.current.close().catch(() => { });
-        outputAudioContextRef.current = null;
+      if (outputAudioContextRef.current?.state !== 'closed') {
+        outputAudioContextRef.current?.suspend().catch(() => { });
       }
     }
 
@@ -118,16 +125,25 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
     if (isConnectingRef.current) return;
     isConnectingRef.current = true;
     isActiveRef.current = true;
+    isPlayingRef.current = false;
 
     try {
       setError(null);
       const isActuallyReconnecting = retryCountRef.current > 0;
       setIsReconnecting(isActuallyReconnecting);
 
-      if (!inputAudioContextRef.current) {
+      // Solução 2: Cria apenas uma vez com latencyHint interativo
+      if (!inputAudioContextRef.current || inputAudioContextRef.current.state === 'closed') {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        inputAudioContextRef.current = new AudioContextClass({ sampleRate: 16000 });
-        outputAudioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
+        inputAudioContextRef.current = new AudioContextClass({
+          sampleRate: 16000,
+          latencyHint: 'interactive'
+        });
+        // Solução 4: Forçar 48000 Hz nativo do Android
+        outputAudioContextRef.current = new AudioContextClass({
+          sampleRate: 48000,
+          latencyHint: 'interactive'
+        });
 
         // Keep-alive: Oscilador silencioso para evitar que o Android suspenda o áudio
         const keepAliveOsc = outputAudioContextRef.current.createOscillator();
@@ -218,52 +234,84 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             const parts = message.serverContent?.modelTurn?.parts;
             if (parts && outputAudioContextRef.current && analyserRef.current) {
               const ctx = outputAudioContextRef.current;
-
               if (ctx.state === 'suspended') await ctx.resume();
-
-              const LOOKAHEAD_DELAY = 1.0;
 
               for (const part of parts) {
                 const base64Audio = part.inlineData?.data;
                 if (base64Audio && isActiveRef.current) {
                   try {
-                    // decodeAudioData agora é síncrona para maior precisão
                     const audioBuffer = decodeAudioData(decode(base64Audio), ctx, 24000, 1);
-                    const source = ctx.createBufferSource();
-                    source.buffer = audioBuffer;
-                    source.connect(analyserRef.current);
 
-                    source.addEventListener('ended', () => {
-                      sourcesRef.current.delete(source);
+                    // Solução 1: Pre-roll Buffering (Acumula 1.5s antes do primeiro som)
+                    if (!isPlayingRef.current) {
+                      preRollBufferRef.current.push(audioBuffer);
+                      preRollDurationRef.current += audioBuffer.duration;
 
-                      // Grace period: Só limpa isTalking se nada for agendado nos próximos 500ms
-                      // Isso evita loops se houver gaps pequenos no áudio em dispositivos lentos
-                      if (sourcesRef.current.size === 0) {
-                        if (isTalkingTimeoutRef.current) clearTimeout(isTalkingTimeoutRef.current);
-                        isTalkingTimeoutRef.current = setTimeout(() => {
-                          if (sourcesRef.current.size === 0) setIsTalking(false);
-                          isTalkingTimeoutRef.current = null;
-                        }, 500);
+                      if (preRollDurationRef.current >= 1.5) {
+                        const now = ctx.currentTime;
+                        nextStartTimeRef.current = now + 0.1;
+
+                        preRollBufferRef.current.forEach(buf => {
+                          const source = ctx.createBufferSource();
+                          source.buffer = buf;
+                          source.connect(analyserRef.current!);
+                          source.addEventListener('ended', () => {
+                            sourcesRef.current.delete(source);
+                            if (sourcesRef.current.size === 0) {
+                              if (isTalkingTimeoutRef.current) clearTimeout(isTalkingTimeoutRef.current);
+                              isTalkingTimeoutRef.current = setTimeout(() => {
+                                if (sourcesRef.current.size === 0) {
+                                  setIsTalking(false);
+                                  isPlayingRef.current = false;
+                                }
+                                isTalkingTimeoutRef.current = null;
+                              }, 500);
+                            }
+                          });
+                          source.start(nextStartTimeRef.current);
+                          nextStartTimeRef.current += buf.duration;
+                          sourcesRef.current.add(source);
+                        });
+
+                        setIsTalking(true);
+                        isPlayingRef.current = true;
+                        preRollBufferRef.current = [];
+                        preRollDurationRef.current = 0;
                       }
-                    });
+                    } else {
+                      // Já está tocando, agenda normalmente
+                      const source = ctx.createBufferSource();
+                      source.buffer = audioBuffer;
+                      source.connect(analyserRef.current);
+                      source.addEventListener('ended', () => {
+                        sourcesRef.current.delete(source);
+                        if (sourcesRef.current.size === 0) {
+                          if (isTalkingTimeoutRef.current) clearTimeout(isTalkingTimeoutRef.current);
+                          isTalkingTimeoutRef.current = setTimeout(() => {
+                            if (sourcesRef.current.size === 0) {
+                              setIsTalking(false);
+                              isPlayingRef.current = false;
+                            }
+                            isTalkingTimeoutRef.current = null;
+                          }, 500);
+                        }
+                      });
 
-                    const currentTime = ctx.currentTime;
-                    // Se o tempo planejado já passou ou não há nada tocando
-                    if (nextStartTimeRef.current < currentTime || sourcesRef.current.size === 0) {
-                      nextStartTimeRef.current = currentTime + LOOKAHEAD_DELAY;
+                      const currentTime = ctx.currentTime;
+                      if (nextStartTimeRef.current < currentTime) {
+                        nextStartTimeRef.current = currentTime + 0.1;
+                      }
+
+                      if (isTalkingTimeoutRef.current) {
+                        clearTimeout(isTalkingTimeoutRef.current);
+                        isTalkingTimeoutRef.current = null;
+                      }
+                      setIsTalking(true);
+                      source.start(nextStartTimeRef.current);
+                      nextStartTimeRef.current += audioBuffer.duration;
+                      sourcesRef.current.add(source);
                     }
-
-                    // Evita re-renders desnecessários se já estiver falando
-                    if (isTalkingTimeoutRef.current) {
-                      clearTimeout(isTalkingTimeoutRef.current);
-                      isTalkingTimeoutRef.current = null;
-                    }
-                    setIsTalking(true);
-
-                    source.start(nextStartTimeRef.current);
-                    nextStartTimeRef.current += audioBuffer.duration;
-                    sourcesRef.current.add(source);
-                  } catch (err) { console.error("[Live] Audio decode error", err); }
+                  } catch (err) { console.error("[Resgate] Audio error", err); }
                 }
               }
             }
@@ -273,6 +321,9 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
               setIsTalking(false);
+              isPlayingRef.current = false;
+              preRollBufferRef.current = [];
+              preRollDurationRef.current = 0;
               if (isTalkingTimeoutRef.current) {
                 clearTimeout(isTalkingTimeoutRef.current);
                 isTalkingTimeoutRef.current = null;
@@ -282,6 +333,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
           onclose: () => {
             setIsConnected(false);
             isConnectingRef.current = false;
+            isPlayingRef.current = false;
             if (isActiveRef.current && retryCountRef.current < MAX_RETRIES) {
               retryCountRef.current++;
               setTimeout(() => connect(), 1000 * retryCountRef.current);
