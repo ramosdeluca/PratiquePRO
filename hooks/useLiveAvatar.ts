@@ -129,6 +129,14 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
         inputAudioContextRef.current = new AudioContextClass({ sampleRate: 16000 });
         outputAudioContextRef.current = new AudioContextClass({ sampleRate: 24000 });
 
+        // Keep-alive: Oscilador silencioso para evitar que o Android suspenda o áudio
+        const keepAliveOsc = outputAudioContextRef.current.createOscillator();
+        const keepAliveGain = outputAudioContextRef.current.createGain();
+        keepAliveGain.gain.value = 0.0001; // Inaudível
+        keepAliveOsc.connect(keepAliveGain);
+        keepAliveGain.connect(outputAudioContextRef.current.destination);
+        keepAliveOsc.start();
+
         analyserRef.current = outputAudioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 512;
         const outputNode = outputAudioContextRef.current.createGain();
