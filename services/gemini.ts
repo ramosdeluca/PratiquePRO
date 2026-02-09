@@ -65,11 +65,12 @@ const safeJsonParse = (text: string): any => {
   }
 };
 
-// Modelos confirmados pelo log do usuário em 09/02/2026
+// Modelos priorizando o menor custo (Flash é mais barato que Pro)
 const MODELS = {
-  // gemini-2.5-flash foi o único que deu "Sucesso" no log do usuário
-  EVAL: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash-8b-latest"],
-  DETAILED: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-1.5-pro-002"]
+  // gemini-2.5-flash é ultra-rápido e econômico
+  EVAL: ["gemini-2.5-flash", "gemini-1.5-flash-8b-latest", "gemini-2.5-pro", "gemini-1.5-flash"],
+  // Usando Flash também no Dashboard para minimizar custo de tokens longos
+  DETAILED: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-pro-002"]
 };
 
 export const evaluateSession = async (transcript: string): Promise<Omit<SessionResult, 'durationSeconds' | 'date' | 'avatarName'>> => {
