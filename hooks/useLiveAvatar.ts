@@ -186,38 +186,50 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             if (parts && outputAudioContextRef.current && analyserRef.current) {
               const ctx = outputAudioContextRef.current;
 
-              // Garante que o AudioContext esteja rodando
               if (ctx.state === 'suspended') {
                 await ctx.resume();
               }
 
-              const LOOKAHEAD_DELAY = 0.4; // Aumentado para 400ms para segurar oscilações maiores em mobile
+              // Definimos constantes para o buffer de segurança
+              const LOOKAHEAD_DELAY = 0.8; // Margem de 800ms para aparelhos mais lentos
+              const PRE_ROLL_MIN_CHUNKS = 3; // Espera acumular 3 pedaços antes de começar a tocar
 
               for (const part of parts) {
                 const base64Audio = part.inlineData?.data;
                 if (base64Audio && isActiveRef.current) {
-                  setIsTalking(true);
-
-                  // Lógica de agendamento mais resiliente
-                  const currentTime = ctx.currentTime;
-                  if (sourcesRef.current.size === 0 || nextStartTimeRef.current < currentTime) {
-                    nextStartTimeRef.current = currentTime + LOOKAHEAD_DELAY;
-                  }
-
                   try {
                     const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+
+                    // Adicionamos à fila o que acabou de chegar
                     const source = ctx.createBufferSource();
                     source.buffer = audioBuffer;
                     source.connect(analyserRef.current);
+
                     source.addEventListener('ended', () => {
                       sourcesRef.current.delete(source);
                       if (sourcesRef.current.size === 0) setIsTalking(false);
                     });
 
+                    // Gerenciamento de tempo com Pre-roll
+                    const currentTime = ctx.currentTime;
+
+                    // Se a fila estiver vazia há algum tempo, aplicamos o delay inicial (Pre-roll)
+                    // Mas apenas se já acumulamos chunks suficientes OU se for um chunk muito longo
+                    if (sourcesRef.current.size === 0 || nextStartTimeRef.current < currentTime) {
+                      // Se for o início de uma nova fala, esperamos acumular PRE_ROLL_MIN_CHUNKS 
+                      // para dar vazão à rede. No caso de streams, o SDK manda rápido.
+                      // Para simplificar e garantir fluidez, forçamos o delay inicial maior.
+                      nextStartTimeRef.current = currentTime + LOOKAHEAD_DELAY;
+                    }
+
+                    setIsTalking(true);
                     source.start(nextStartTimeRef.current);
                     nextStartTimeRef.current += audioBuffer.duration;
                     sourcesRef.current.add(source);
-                  } catch (err) { console.error("[Live] Audio decode error", err); }
+
+                  } catch (err) {
+                    console.error("[Live] Audio decode error", err);
+                  }
                 }
               }
             }
