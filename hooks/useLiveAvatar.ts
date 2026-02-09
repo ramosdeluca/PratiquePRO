@@ -24,6 +24,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
 
   const nextStartTimeRef = useRef<number>(0);
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
+  const messageQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const isConnectingRef = useRef(false);
@@ -33,6 +34,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
 
   const disconnect = useCallback(async (isManual = true) => {
     isActiveRef.current = false;
+    messageQueueRef.current = Promise.resolve(); // Limpa fila ao desconectar
 
     if (isManual) {
       retryCountRef.current = 0;
@@ -118,13 +120,13 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
         streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
 
-      const apiKey = process.env.API_KEY;
+      const apiKey = process.env.API_KEY || (window as any).VITE_GEMINI_API_KEY;
       if (!apiKey) throw new Error("Chave de API ausente.");
 
       const ai = new GoogleGenAI({ apiKey });
 
       const currentSessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+        model: 'gemini-2.0-flash-exp', // Usando o modelo estável para voz
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
@@ -172,74 +174,70 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             sourceRef.current.connect(processorRef.current);
             processorRef.current.connect(inputAudioContextRef.current.destination);
           },
-          onmessage: async (message: LiveServerMessage) => {
+          onmessage: (message: LiveServerMessage) => {
             if (!isActiveRef.current) return;
 
-            if (message.serverContent?.outputTranscription?.text) {
-              onTranscriptUpdate(message.serverContent.outputTranscription.text, false);
-            }
-            if (message.serverContent?.inputTranscription?.text) {
-              onTranscriptUpdate(message.serverContent.inputTranscription.text, true);
-            }
+            // Enfileira o processamento para evitar race conditions no agendamento
+            messageQueueRef.current = messageQueueRef.current.then(async () => {
+              if (!isActiveRef.current) return;
 
-            const parts = message.serverContent?.modelTurn?.parts;
-            if (parts && outputAudioContextRef.current && analyserRef.current) {
-              const ctx = outputAudioContextRef.current;
-
-              if (ctx.state === 'suspended') {
-                await ctx.resume();
+              if (message.serverContent?.outputTranscription?.text) {
+                onTranscriptUpdate(message.serverContent.outputTranscription.text, false);
+              }
+              if (message.serverContent?.inputTranscription?.text) {
+                onTranscriptUpdate(message.serverContent.inputTranscription.text, true);
               }
 
-              // Definimos constantes para o buffer de segurança
-              const LOOKAHEAD_DELAY = 0.8; // Margem de 800ms para aparelhos mais lentos
-              const PRE_ROLL_MIN_CHUNKS = 3; // Espera acumular 3 pedaços antes de começar a tocar
+              const parts = message.serverContent?.modelTurn?.parts;
+              if (parts && outputAudioContextRef.current && analyserRef.current) {
+                const ctx = outputAudioContextRef.current;
 
-              for (const part of parts) {
-                const base64Audio = part.inlineData?.data;
-                if (base64Audio && isActiveRef.current) {
-                  try {
-                    const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+                if (ctx.state === 'suspended') await ctx.resume();
 
-                    // Adicionamos à fila o que acabou de chegar
-                    const source = ctx.createBufferSource();
-                    source.buffer = audioBuffer;
-                    source.connect(analyserRef.current);
+                const LOOKAHEAD_DELAY = 1.2; // Buffer extra para redes 4G/Samsung Série A
 
-                    source.addEventListener('ended', () => {
-                      sourcesRef.current.delete(source);
-                      if (sourcesRef.current.size === 0) setIsTalking(false);
-                    });
+                for (const part of parts) {
+                  const base64Audio = part.inlineData?.data;
+                  if (base64Audio && isActiveRef.current) {
+                    try {
+                      // decodeAudioData agora é síncrona para maior precisão
+                      const audioBuffer = decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+                      const source = ctx.createBufferSource();
+                      source.buffer = audioBuffer;
+                      source.connect(analyserRef.current);
 
-                    // Gerenciamento de tempo com Pre-roll
-                    const currentTime = ctx.currentTime;
+                      source.addEventListener('ended', () => {
+                        sourcesRef.current.delete(source);
+                        // Só para de falar se a fila estiver realmente vazia
+                        if (sourcesRef.current.size === 0) {
+                          setIsTalking(false);
+                        }
+                      });
 
-                    // Se a fila estiver vazia há algum tempo, aplicamos o delay inicial (Pre-roll)
-                    // Mas apenas se já acumulamos chunks suficientes OU se for um chunk muito longo
-                    if (sourcesRef.current.size === 0 || nextStartTimeRef.current < currentTime) {
-                      // Se for o início de uma nova fala, esperamos acumular PRE_ROLL_MIN_CHUNKS 
-                      // para dar vazão à rede. No caso de streams, o SDK manda rápido.
-                      // Para simplificar e garantir fluidez, forçamos o delay inicial maior.
-                      nextStartTimeRef.current = currentTime + LOOKAHEAD_DELAY;
-                    }
+                      const currentTime = ctx.currentTime;
+                      // Se o tempo planejado já passou ou não há nada tocando
+                      if (nextStartTimeRef.current < currentTime || sourcesRef.current.size === 0) {
+                        nextStartTimeRef.current = currentTime + LOOKAHEAD_DELAY;
+                      }
 
-                    setIsTalking(true);
-                    source.start(nextStartTimeRef.current);
-                    nextStartTimeRef.current += audioBuffer.duration;
-                    sourcesRef.current.add(source);
+                      // Evita re-renders desnecessários se já estiver falando
+                      setIsTalking(true);
 
-                  } catch (err) {
-                    console.error("[Live] Audio decode error", err);
+                      source.start(nextStartTimeRef.current);
+                      nextStartTimeRef.current += audioBuffer.duration;
+                      sourcesRef.current.add(source);
+                    } catch (err) { console.error("[Live] Audio decode error", err); }
                   }
                 }
               }
-            }
 
-            if (message.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => { try { s.stop(); } catch (e) { } });
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              setIsTalking(false);
-            }
+              if (message.serverContent?.interrupted) {
+                sourcesRef.current.forEach(s => { try { s.stop(); } catch (e) { } });
+                sourcesRef.current.clear();
+                nextStartTimeRef.current = 0;
+                setIsTalking(false);
+              }
+            });
           },
           onclose: () => {
             setIsConnected(false);
