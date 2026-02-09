@@ -89,6 +89,31 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
     isConnectingRef.current = false;
   }, []);
 
+  const isTalkingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const transcriptBufferRef = useRef<{ text: string, isUser: boolean }[]>([]);
+
+  // Throttle de transcrição para reduzir carga de UI em mobile
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (transcriptBufferRef.current.length > 0) {
+        // Agrupa textos do mesmo tipo
+        const groups: { text: string, isUser: boolean }[] = [];
+        transcriptBufferRef.current.forEach(item => {
+          const last = groups[groups.length - 1];
+          if (last && last.isUser === item.isUser) {
+            last.text += item.text;
+          } else {
+            groups.push({ ...item });
+          }
+        });
+
+        groups.forEach(group => onTranscriptUpdate(group.text, group.isUser));
+        transcriptBufferRef.current = [];
+      }
+    }, 150); // 150ms é um bom balanço entre tempo real e performance
+    return () => clearInterval(interval);
+  }, [onTranscriptUpdate]);
+
   const connect = useCallback(async () => {
     if (isConnectingRef.current) return;
     isConnectingRef.current = true;
@@ -131,7 +156,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             voiceConfig: { prebuiltVoiceConfig: { voiceName: avatarConfig.voice } },
           },
           systemInstruction: `YOU ARE A NATIVE SPEAKER CONVERSATION PARTNER.
-          - MANDATORY RULE: NEVER repeat, parrot, or rephrase the user's sentence back to them if they are correct. 
+          - MANDATORY RULE: NEVER repeat, parrot, or rephrase the user's sentence back to them if they are correct.
           - NO CONFIRMATION: Do not say "You said correctly: ..." or similar.
           - FLOW: If the user is correct, respond IMMEDIATELY to their question or comment like a real human friend.
           - CORRECTION: ONLY use the word "Correction:" if there is a real grammatical error. If you correct, be brief: "Correction: [Right sentence]. Anyway, [Your response]".
@@ -176,10 +201,10 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             if (!isActiveRef.current) return;
 
             if (message.serverContent?.outputTranscription?.text) {
-              onTranscriptUpdate(message.serverContent.outputTranscription.text, false);
+              transcriptBufferRef.current.push({ text: message.serverContent.outputTranscription.text, isUser: false });
             }
             if (message.serverContent?.inputTranscription?.text) {
-              onTranscriptUpdate(message.serverContent.inputTranscription.text, true);
+              transcriptBufferRef.current.push({ text: message.serverContent.inputTranscription.text, isUser: true });
             }
 
             const parts = message.serverContent?.modelTurn?.parts;
@@ -202,9 +227,15 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
 
                     source.addEventListener('ended', () => {
                       sourcesRef.current.delete(source);
-                      // Só para de falar se a fila estiver realmente vazia
+
+                      // Grace period: Só limpa isTalking se nada for agendado nos próximos 500ms
+                      // Isso evita loops se houver gaps pequenos no áudio em dispositivos lentos
                       if (sourcesRef.current.size === 0) {
-                        setIsTalking(false);
+                        if (isTalkingTimeoutRef.current) clearTimeout(isTalkingTimeoutRef.current);
+                        isTalkingTimeoutRef.current = setTimeout(() => {
+                          if (sourcesRef.current.size === 0) setIsTalking(false);
+                          isTalkingTimeoutRef.current = null;
+                        }, 500);
                       }
                     });
 
@@ -215,6 +246,10 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
                     }
 
                     // Evita re-renders desnecessários se já estiver falando
+                    if (isTalkingTimeoutRef.current) {
+                      clearTimeout(isTalkingTimeoutRef.current);
+                      isTalkingTimeoutRef.current = null;
+                    }
                     setIsTalking(true);
 
                     source.start(nextStartTimeRef.current);
@@ -230,6 +265,10 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
               sourcesRef.current.clear();
               nextStartTimeRef.current = 0;
               setIsTalking(false);
+              if (isTalkingTimeoutRef.current) {
+                clearTimeout(isTalkingTimeoutRef.current);
+                isTalkingTimeoutRef.current = null;
+              }
             }
           },
           onclose: () => {
@@ -277,7 +316,12 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
     }
   }, []);
 
-  useEffect(() => { return () => { disconnect(true); }; }, [disconnect]);
+  useEffect(() => {
+    return () => {
+      disconnect(true);
+      if (isTalkingTimeoutRef.current) clearTimeout(isTalkingTimeoutRef.current);
+    };
+  }, [disconnect]);
 
   return { connect, disconnect, isConnected, isTalking, isReconnecting, error, analyserNode: analyserRef.current, sendText };
 };
