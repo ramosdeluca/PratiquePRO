@@ -725,7 +725,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
 
                             <div className="border-t border-gray-700 pt-4">
                               <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-3 tracking-widest">Transcrição Completa</h5>
-                              <div className="bg-gray-900/80 rounded-xl p-4 max-h-[500px] overflow-y-auto custom-scrollbar space-y-4 shadow-inner">
+                              <div className="bg-gray-900/80 rounded-xl p-4 max-h-[400px] overflow-y-auto custom-scrollbar space-y-4 shadow-inner">
                                 {session.transcript ? (
                                   session.transcript.split('\n').filter(line => line.trim()).map((line, lIdx) => {
                                     const isUser = line.toLowerCase().startsWith('user:');
