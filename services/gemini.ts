@@ -82,7 +82,7 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
   if (!apiKey) return { overallScore: 50, vocabularyScore: 50, grammarScore: 50, pronunciationScore: 50, fluencyRating: 'Beginner', feedback: "Erro: Chave de API ausente.", transcript };
 
   const genAI = new GoogleGenAI({ apiKey });
-  const prunedTranscript = transcript.split('\n').filter(l => l.trim()).slice(-25).join('\n');
+  const prunedTranscript = transcript.split('\n').filter(l => l.trim()).slice(-10).join('\n');
 
   for (const modelName of MODELS.EVAL) {
     try {
@@ -157,7 +157,7 @@ export const generateDetailedFeedback = async (currentTranscript: string, histor
   if (!apiKey) return null;
 
   const genAI = new GoogleGenAI({ apiKey });
-  const trans = currentTranscript.split('\n').filter(l => l.trim()).slice(-15).join('\n');
+  const trans = currentTranscript.split('\n').filter(l => l.trim()).slice(-10).join('\n');
   const hist = history.slice(0, 5).map(s => ({ d: s.date.split('T')[0], s: { o: s.overallScore, v: s.vocabularyScore, g: s.grammarScore, p: s.pronunciationScore } }));
 
   for (const modelName of MODELS.DETAILED) {

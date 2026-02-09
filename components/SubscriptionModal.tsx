@@ -20,7 +20,7 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, on
   const [isChecking, setIsChecking] = useState(false);
 
   const SUBSCRIPTION_PRICE = 39.90;
-  const SUBSCRIPTION_MINUTES = 1800; // 30 horas = 1800 minutos
+  const SUBSCRIPTION_MINUTES = 300; // 5 horas = 300 minutos
 
   const handleSubscribe = async () => {
     const cleanCpf = cpf.replace(/\D/g, '');
@@ -127,7 +127,7 @@ const SubscriptionModal: React.FC<SubscriptionModalProps> = ({ user, onClose, on
               <h2 className="text-2xl font-bold text-white">Plano Mensal PratiquePRO</h2>
               <div className="bg-gray-900/50 p-6 rounded-2xl border border-gray-700">
                 <p className="text-4xl font-black text-blue-400">R$ 39,90</p>
-                <p className="text-sm text-gray-400 mt-2">30 Horas de Conversação (1.800 min)</p>
+                <p className="text-sm text-gray-400 mt-2">300 minutos de Conversação</p>
               </div>
 
               <div className="text-left space-y-2">
