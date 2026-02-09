@@ -94,7 +94,9 @@ const AVATARS: AvatarConfig[] = [
 ];
 
 const SimpleLineChart: React.FC<{ data: { data: string, score: number }[], color: string }> = ({ data, color }) => {
-  if (!data || data.length < 2) return <div className="h-16 flex items-center justify-center text-[10px] text-gray-500 italic">Dados insuficientes para gráfico</div>;
+  if (!data || !Array.isArray(data) || data.length < 2) {
+    return <div className="h-16 flex items-center justify-center text-[10px] text-gray-500 italic">Dados insuficientes para gráfico</div>;
+  }
 
   const width = 200;
   const height = 40;
@@ -102,15 +104,23 @@ const SimpleLineChart: React.FC<{ data: { data: string, score: number }[], color
   const minScore = 0;
   const maxScore = 100;
 
-  const points = data.map((d, i) => {
-    const x = (i / (data.length - 1)) * (width - 2 * padding) + padding;
-    const y = height - ((d.score - minScore) / (maxScore - minScore)) * (height - 2 * padding) - padding;
-    return `${x},${y}`;
-  }).join(' ');
+  const points = data
+    .filter(d => d && (typeof d.score === 'number' || !isNaN(Number(d.score))))
+    .map((d, i) => {
+      const score = Number(d.score || 50);
+      const validScore = isNaN(score) ? 50 : Math.max(0, Math.min(100, score));
+
+      const x = (i / (data.length - 1)) * (width - 2 * padding) + padding;
+      const y = height - ((validScore - minScore) / (maxScore - minScore)) * (height - 2 * padding) - padding;
+
+      const safeX = isNaN(x) ? padding : x;
+      const safeY = isNaN(y) ? height / 2 : y;
+      return `${safeX},${safeY}`;
+    }).join(' ');
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="mt-2">
-      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={points} className="drop-shadow-sm" />
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="mt-2 overflow-visible">
+      <polyline fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={points} className="drop-shadow-sm transition-all duration-500" />
     </svg>
   );
 };
@@ -130,10 +140,13 @@ const SimpleRadarChart: React.FC<{ metrics: { label: string, score: number }[] }
     };
   };
 
-  const polyPoints = metrics.map((m, i) => {
-    const p = getPoint(m.score, i, radius);
-    return `${p.x},${p.y}`;
-  }).join(' ');
+  const polyPoints = metrics
+    .filter(m => m && typeof m.score === 'number' || !isNaN(Number(m.score)))
+    .map((m, i) => {
+      const score = Math.max(5, Math.min(100, Number(m.score || 50)));
+      const p = getPoint(score, i, radius);
+      return `${p.x},${p.y}`;
+    }).join(' ');
 
   const gridLevels = [25, 50, 75, 100];
 
@@ -264,6 +277,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
     checkSubscriptionStatus();
   }, [user.id, user.subscription]);
 
+  const isValidFeedback = (f: any): f is DetailedFeedback => {
+    // Softened validation: check for top-level keys but don't crash if nested metrics are missing
+    const hasMetricas = !!(f && f.metricas_atuais);
+    console.log("[Dashboard] Validando feedback. Possui metricas_atuais?", hasMetricas);
+    return hasMetricas;
+  };
+
   const loadFeedback = async () => {
     if (history.length === 0 || !user.id) return;
 
@@ -273,15 +293,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
     try {
       const stored = await getStoredDetailedFeedback(user.id);
 
-      if (stored && new Date(stored.lastDate).getTime() >= new Date(latestSession.date).getTime()) {
+      // Valida se o feedback armazenado existe e tem o formato correto
+      if (stored && isValidFeedback(stored.content) && new Date(stored.lastDate).getTime() >= new Date(latestSession.date).getTime()) {
         setDetailedFeedback(stored.content);
         setLastEvaluatedSessionDate(stored.lastDate);
         setIsLoadingFeedback(false);
         return;
       }
 
+      // Se não houver ou estiver inválido/antigo, gera novo
+      console.log("[Dashboard] Gerando novo feedback detalhado...");
       const feedback = await generateDetailedFeedback(latestSession.transcript, history);
-      if (feedback) {
+      if (feedback && isValidFeedback(feedback)) {
         setDetailedFeedback(feedback);
         setLastEvaluatedSessionDate(latestSession.date);
         await upsertDetailedFeedback(user.id, feedback, latestSession.date);
@@ -409,14 +432,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
     return <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 12h14"></path></svg>;
   };
 
-  const radarMetrics = detailedFeedback ? [
-    { label: 'Fluência', score: detailedFeedback.metricas_atuais.fluencia.score },
-    { label: 'Vocabulário', score: detailedFeedback.metricas_atuais.vocabulario.score },
-    { label: 'Gramática', score: detailedFeedback.metricas_atuais.precisao_gramatical.score },
-    { label: 'Pronúncia', score: detailedFeedback.metricas_atuais.clareza_pronuncia.score },
-    { label: 'Coerência', score: detailedFeedback.metricas_atuais.coerencia.score },
-    { label: 'Confiança', score: detailedFeedback.metricas_atuais.confianca.score },
-  ] : [];
+  const radarMetrics = useMemo(() => {
+    if (!detailedFeedback || !detailedFeedback.metricas_atuais) return [];
+    const m = detailedFeedback.metricas_atuais;
+    return [
+      { label: 'Fluência', score: Number(m.fluencia?.score) || 50 },
+      { label: 'Vocabulário', score: Number(m.vocabulario?.score) || 50 },
+      { label: 'Gramática', score: Number(m.precisao_gramatical?.score) || 50 },
+      { label: 'Pronúncia', score: Number(m.clareza_pronuncia?.score) || 50 },
+      { label: 'Coerência', score: Number(m.coerencia?.score) || 50 },
+      { label: 'Confiança', score: Number(m.confianca?.score) || 50 },
+    ].map(item => ({ ...item, score: item.score === 0 ? 50 : item.score }));
+  }, [detailedFeedback]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -788,32 +815,39 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Object.entries(detailedFeedback.metricas_atuais).map(([key, val]) => {
+                  {detailedFeedback.metricas_atuais && Object.entries(detailedFeedback.metricas_atuais).map(([key, val]) => {
                     const metric = val as MetricDetail;
-                    const label = key.replace('_', ' ');
-                    const color = metric.score > 70 ? 'text-green-400' : metric.score > 40 ? 'text-yellow-400' : 'text-red-400';
-                    const chartColor = metric.score > 70 ? '#4ade80' : metric.score > 40 ? '#facc15' : '#f87171';
+                    const label = key.replace(/_/g, ' ');
+                    let score = Number(metric?.score);
+                    if (isNaN(score) || score === 0) score = 50;
+
+                    const rawTendencia = String(metric?.tendencia || 'estavel').toLowerCase();
+                    const tendencia = rawTendencia.includes('evolu') || rawTendencia.includes('melhora') ? 'evoluindo' :
+                      rawTendencia.includes('regred') || rawTendencia.includes('queda') ? 'regredindo' : 'estavel';
+
+                    const color = score > 70 ? 'text-green-400' : score > 40 ? 'text-yellow-400' : 'text-red-400';
+                    const chartColor = score > 70 ? '#4ade80' : score > 40 ? '#facc15' : '#f87171';
 
                     return (
-                      <div key={key} className="bg-gray-800 p-6 rounded-2xl border border-gray-700 flex flex-col justify-between transition-all hover:border-gray-600">
+                      <div key={key} className="bg-gray-800 p-6 rounded-2xl border border-gray-700 flex flex-col justify-between transition-all hover:border-gray-600 group">
                         <div>
                           <div className="flex justify-between items-start mb-4">
-                            <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider">{label}</h4>
+                            <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider group-hover:text-white transition-colors">{label}</h4>
                             <div className="flex items-center gap-1">
-                              <span className={`text-[10px] font-bold uppercase ${metric.tendencia === 'evoluindo' ? 'text-green-400' : metric.tendencia === 'regredindo' ? 'text-red-400' : 'text-gray-400'}`}>{metric.tendencia}</span>
-                              <TrendIcon tendencia={metric.tendencia} />
+                              <span className={`text-[10px] font-bold uppercase ${tendencia === 'evoluindo' ? 'text-green-400' : tendencia === 'regredindo' ? 'text-red-400' : 'text-gray-400'}`}>{tendencia}</span>
+                              <TrendIcon tendencia={tendencia} />
                             </div>
                           </div>
                           <div className="flex items-end gap-2 mb-4">
-                            <span className={`text-4xl font-black ${color}`}>{metric.score}</span>
+                            <span className={`text-4xl font-black ${color}`}>{score}</span>
                             <span className="text-gray-600 text-xs mb-1">/ 100</span>
                           </div>
-                          <p className="text-xs text-gray-400 leading-relaxed mb-4">{(detailedFeedback.feedbacks as any)[key]}</p>
+                          <p className="text-xs text-gray-400 leading-relaxed mb-4 min-h-[3em]">{(detailedFeedback.feedbacks || {} as any)[key] || "Feedback indisponível."}</p>
                         </div>
                         <div className="border-t border-gray-700 pt-4 mt-auto">
                           <p className="text-[9px] text-gray-500 uppercase font-black mb-1">Evolução Histórica</p>
                           <SimpleLineChart
-                            data={(detailedFeedback.dados_grafico_historico as any)[key]}
+                            data={(detailedFeedback.dados_grafico_historico || {} as any)[key] || []}
                             color={chartColor}
                           />
                         </div>

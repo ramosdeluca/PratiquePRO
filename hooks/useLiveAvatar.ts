@@ -37,6 +37,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
   const MAX_RETRIES = 5;
 
   const disconnect = useCallback(async (isManual = true) => {
+    setIsConnected(false); // Seta como desconectado IMEDIATAMENTE para parar emissões
     isActiveRef.current = false;
     isPlayingRef.current = false;
     preRollBufferRef.current = [];
@@ -212,7 +213,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
                   try {
                     session.sendRealtimeInput({ media: pcmBlob });
                   } catch (err) {
-                    // Ignore WebSocket closing errors during disconnect/instability
+                    // Ignora silenciosamente erros de WebSocket fechado/fechando durante a transição
                   }
                 }
               }).catch(() => { });
@@ -370,7 +371,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             (session as any).send({ parts: [{ text }] });
           }
         } catch (err) {
-          console.error("[useLiveAvatar] Error in sendText:", err);
+          // Ignora erros de estado do WebSocket para manter o log limpo
         }
       });
     }
