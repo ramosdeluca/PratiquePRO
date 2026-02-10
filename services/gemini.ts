@@ -67,19 +67,18 @@ const safeJsonParse = (text: string): any => {
 
 // Modelos priorizando o menor custo (Flash é mais barato que Pro)
 const MODELS = {
-  // gemini-2.5-flash é ultra-rápido e econômico
-  EVAL: ["gemini-2.5-flash", "gemini-1.5-flash-8b-latest", "gemini-2.5-pro", "gemini-1.5-flash"],
-  // Usando Flash também no Dashboard para minimizar custo de tokens longos
-  DETAILED: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-pro-002"]
+  // Apenas modelos Flash para custo mínimo absoluto
+  EVAL: ["gemini-2.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-flash"],
+  DETAILED: ["gemini-2.5-flash", "gemini-1.5-flash-latest"]
 };
 
 export const evaluateSession = async (transcript: string): Promise<Omit<SessionResult, 'durationSeconds' | 'date' | 'avatarName'>> => {
   if (!transcript || transcript.trim().length < 10) {
-    return { overallScore: 10, vocabularyScore: 10, grammarScore: 10, pronunciationScore: 10, feedback: "Diálogo insuficiente.", fluencyRating: 'Beginner', transcript };
+    return { overallScore: 10, vocabularyScore: 10, grammarScore: 10, pronunciationScore: 10, coherenceScore: 10, confidenceScore: 10, feedback: "Diálogo insuficiente.", fluencyRating: 'Beginner', transcript };
   }
 
   const apiKey = getApiKey();
-  if (!apiKey) return { overallScore: 50, vocabularyScore: 50, grammarScore: 50, pronunciationScore: 50, fluencyRating: 'Beginner', feedback: "Erro: Chave de API ausente.", transcript };
+  if (!apiKey) return { overallScore: 50, vocabularyScore: 50, grammarScore: 50, pronunciationScore: 50, coherenceScore: 50, confidenceScore: 50, fluencyRating: 'Beginner', feedback: "Erro: Chave de API ausente.", transcript };
 
   const genAI = new GoogleGenAI({ apiKey });
   const prunedTranscript = transcript.split('\n').filter(l => l.trim()).slice(-10).join('\n');
@@ -107,13 +106,15 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
                           "vocabularyScore": number,
                           "grammarScore": number,
                           "pronunciationScore": number,
+                          "coherenceScore": number,
+                          "confidenceScore": number,
                           "fluencyRating": "Beginner"|"Intermediate"|"Advanced"|"Native",
                           "feedback": "string"
                         }`
           }]
         }],
         generationConfig: {
-          maxOutputTokens: 4096, // Aumentado para evitar truncamento
+          maxOutputTokens: 768, // Reduzido para economia extrema
           temperature: 0.7,
           responseMimeType: "application/json"
         },
@@ -139,6 +140,8 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
           vocabularyScore: normalize(r.vocabularyScore),
           grammarScore: normalize(r.grammarScore),
           pronunciationScore: normalize(r.pronunciationScore),
+          coherenceScore: normalize(r.coherenceScore),
+          confidenceScore: normalize(r.confidenceScore),
           fluencyRating: r.fluencyRating || 'Beginner',
           feedback: r.feedback || "Excelente prática! Continue assim.",
           transcript
@@ -149,7 +152,7 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
     }
   }
 
-  return { overallScore: 50, vocabularyScore: 50, grammarScore: 50, pronunciationScore: 50, fluencyRating: 'Beginner', feedback: "Sua prática foi concluída! Continue conversando para expandir seu inglês.", transcript };
+  return { overallScore: 50, vocabularyScore: 50, grammarScore: 50, pronunciationScore: 50, coherenceScore: 50, confidenceScore: 50, fluencyRating: 'Beginner', feedback: "Sua prática foi concluída! Continue conversando para expandir seu inglês.", transcript };
 };
 
 export const generateDetailedFeedback = async (currentTranscript: string, history: SessionResult[]): Promise<DetailedFeedback | null> => {
@@ -158,7 +161,17 @@ export const generateDetailedFeedback = async (currentTranscript: string, histor
 
   const genAI = new GoogleGenAI({ apiKey });
   const trans = currentTranscript.split('\n').filter(l => l.trim()).slice(-10).join('\n');
-  const hist = history.slice(0, 5).map(s => ({ d: s.date.split('T')[0], s: { o: s.overallScore, v: s.vocabularyScore, g: s.grammarScore, p: s.pronunciationScore } }));
+  const hist = history.slice(0, 10).map(s => ({
+    d: s.date.split('T')[0],
+    s: {
+      fluencia: s.overallScore,
+      vocabulario: s.vocabularyScore,
+      precisao_gramatical: s.grammarScore,
+      clareza_pronuncia: s.pronunciationScore,
+      coerencia: s.coherenceScore || s.overallScore, // Fallback para registros antigos
+      confianca: s.confidenceScore || s.overallScore
+    }
+  }));
 
   for (const modelName of MODELS.DETAILED) {
     try {
@@ -174,17 +187,18 @@ export const generateDetailedFeedback = async (currentTranscript: string, histor
                     REGRAS:
                     1. Preencha TODAS as métricas: fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca.
                     2. Dê notas técnicas reais.
-                    3. Feedbacks e resumo DEVEM ser longos, profundos e em Português.
+                    3. Feedbacks e resumo DEVEM ser objetivos, diretos e em Português.
+                    4. Seja conciso para economizar tokens.
                     
                     JSON: {
-                      "metricas_atuais": { "[métrica]": {"score":0, "tendencia":"evoluindo"|"estavel"|"regredindo"} },
-                      "feedbacks": { "[métrica]": "texto longo" },
-                      "resumo_geral": "análise profunda",
-                      "dados_grafico_historico": { "[métrica]": [{"data":"...", "score":0}] }
+                      "metricas_atuais": { "[fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca]": {"score":0, "tendencia":"evoluindo"|"estavel"|"regredindo"} },
+                      "feedbacks": { "[fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca]": "texto objetivo e direto" },
+                      "resumo_geral": "análise concisa",
+                      "dados_grafico_historico": { "[fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca]": [{"data":"...", "score":0}] }
                     }` }]
         }],
         generationConfig: {
-          maxOutputTokens: 8192,
+          maxOutputTokens: 2560, // Aumentado para garantir JSON completo sem custo Pro
           temperature: 0.1,
           responseMimeType: "application/json"
         },

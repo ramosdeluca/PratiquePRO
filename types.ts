@@ -18,6 +18,7 @@ export interface User {
   cpf?: string;
   phone?: string;
   termsAcceptedAt?: string; // ISO Timestamp provided at registration
+  qtdFeedbacks?: number; // Contador de feedbacks mensais (máx 5)
 }
 
 export interface MetricDetail {
@@ -63,6 +64,8 @@ export interface SessionResult {
   vocabularyScore: number;
   grammarScore: number;
   pronunciationScore: number;
+  coherenceScore: number;
+  confidenceScore: number;
   fluencyRating: 'Beginner' | 'Intermediate' | 'Advanced' | 'Native';
   feedback: string;
   durationSeconds: number;

@@ -289,14 +289,37 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
 
     const latestSession = history[0];
 
+    // Define limite baseado no tipo de assinatura
+    const isFreeUser = !user.subscription || user.subscription === 'free' || user.subscription === 'FREE';
+    const feedbackLimit = isFreeUser ? 1 : 5;
+    const currentFeedbackCount = user.qtdFeedbacks || 0;
+    const hasReachedLimit = currentFeedbackCount >= feedbackLimit;
+
     setIsLoadingFeedback(true);
     try {
       const stored = await getStoredDetailedFeedback(user.id);
 
-      // Valida se o feedback armazenado existe e tem o formato correto
+      // Para usuários FREE que atingiram o limite: sempre mostra o cache (mesmo desatualizado)
+      if (isFreeUser && hasReachedLimit && stored && isValidFeedback(stored.content)) {
+        setDetailedFeedback(stored.content);
+        setLastEvaluatedSessionDate(stored.lastDate);
+        setIsLoadingFeedback(false);
+        return; // Não tenta gerar novo feedback
+      }
+
+      // Para outros casos: valida se o feedback armazenado está atualizado
       if (stored && isValidFeedback(stored.content) && new Date(stored.lastDate).getTime() >= new Date(latestSession.date).getTime()) {
         setDetailedFeedback(stored.content);
         setLastEvaluatedSessionDate(stored.lastDate);
+        setIsLoadingFeedback(false);
+        // NÃO incrementa qtd_feedbacks ao carregar do cache
+        return;
+      }
+
+      // Verifica se atingiu o limite antes de gerar novo
+      if (hasReachedLimit) {
+        // Se atingiu limite mas não tem cache, mostra null (tela de limite)
+        setDetailedFeedback(null);
         setIsLoadingFeedback(false);
         return;
       }
@@ -308,6 +331,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
         setDetailedFeedback(feedback);
         setLastEvaluatedSessionDate(latestSession.date);
         await upsertDetailedFeedback(user.id, feedback, latestSession.date);
+
+        // INCREMENTA qtd_feedbacks APENAS quando a IA gera um novo feedback
+        const newCount = currentFeedbackCount + 1;
+        await updateUserStats(user.id, { qtdFeedbacks: newCount });
+        if (onPartialUpdate) onPartialUpdate({ qtdFeedbacks: newCount });
       }
     } catch (err) {
       console.error("[Dashboard] Error loading feedback:", err);
@@ -786,51 +814,104 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
           </div>
         )}
 
-        {activeTab === 'feedback' && (
-          <div className="space-y-8 animate-fade-in">
-            {history.length === 0 ? (
-              <div className="bg-gray-800 p-12 rounded-3xl border border-gray-700 text-center">
-                <p className="text-gray-500">Realize sua primeira sessão para receber feedback detalhado.</p>
-              </div>
-            ) : isLoadingFeedback ? (
-              <div className="bg-gray-800 p-20 rounded-3xl border border-gray-700 flex flex-col items-center justify-center space-y-4">
-                <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-gray-400 font-medium">O Agente de Avaliação está analisando seu progresso...</p>
-              </div>
-            ) : detailedFeedback ? (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/30 p-8 rounded-3xl shadow-xl flex flex-col justify-center">
-                    <h3 className="text-xl font-black mb-4 flex items-center gap-2">
-                      <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      Resumo do seu Aprendizado
-                    </h3>
-                    <p className="text-lg text-gray-200 leading-relaxed italic">"{detailedFeedback.resumo_geral}"</p>
-                  </div>
+        {activeTab === 'feedback' && (() => {
+          const isFreeUser = !user.subscription || user.subscription === 'free' || user.subscription === 'FREE';
+          const feedbackLimit = isFreeUser ? 1 : 5;
+          const currentCount = user.qtdFeedbacks || 0;
+          const hasReachedLimit = currentCount >= feedbackLimit;
 
-                  <div className="bg-gray-800 p-6 rounded-3xl border border-gray-700 shadow-xl flex flex-col items-center">
-                    <h3 className="text-xs font-black uppercase text-gray-500 mb-2 tracking-widest">Gráfico de Radar de Competências</h3>
-                    <SimpleRadarChart metrics={radarMetrics} />
+          return (
+            <div className="space-y-8 animate-fade-in">
+              {/* Contador de Feedbacks Mensais */}
+              <div className={`p-4 rounded-2xl flex items-center justify-between ${isFreeUser ? 'bg-purple-900/20 border border-purple-500/30' : 'bg-blue-900/20 border border-blue-500/30'}`}>
+                <div className="flex items-center gap-3">
+                  <svg className={`w-5 h-5 ${isFreeUser ? 'text-purple-400' : 'text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  <div>
+                    <p className={`text-sm font-bold ${isFreeUser ? 'text-purple-100' : 'text-blue-100'}`}>
+                      {isFreeUser ? 'Plano Gratuito' : 'Feedbacks Mensais'}
+                    </p>
+                    <p className={`text-xs ${isFreeUser ? 'text-purple-300/70' : 'text-blue-300/70'}`}>
+                      {isFreeUser ? 'Assine para ter 5 feedbacks por mês' : 'Os feedbacks são gerados após conversas novas'}
+                    </p>
                   </div>
                 </div>
+                <div className="text-right">
+                  <p className={`text-2xl font-black ${isFreeUser ? 'text-purple-400' : 'text-blue-400'}`}>{currentCount}/{feedbackLimit}</p>
+                  <p className={`text-[10px] uppercase font-bold ${isFreeUser ? 'text-purple-300/50' : 'text-blue-300/50'}`}>Utilizados</p>
+                </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {detailedFeedback.metricas_atuais && Object.entries(detailedFeedback.metricas_atuais).map(([key, val]) => {
-                    const metric = val as MetricDetail;
-                    const label = key.replace(/_/g, ' ');
-                    let score = Number(metric?.score);
-                    if (isNaN(score) || score === 0) score = 50;
+              {history.length === 0 ? (
+                <div className="bg-gray-800 p-12 rounded-3xl border border-gray-700 text-center">
+                  <p className="text-gray-500">Realize sua primeira sessão para receber feedback detalhado.</p>
+                </div>
+              ) : hasReachedLimit && !isFreeUser ? (
+                <div className="bg-red-900/20 border border-red-500/30 p-12 rounded-3xl text-center space-y-4">
+                  <svg className="w-16 h-16 mx-auto text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                  <h3 className="text-xl font-black text-red-400">Limite Mensal Atingido</h3>
+                  <p className="text-gray-300 max-w-md mx-auto">
+                    Você utilizou seus <span className="font-bold text-red-400">5 feedbacks detalhados</span> deste mês.
+                    O contador será zerado automaticamente no próximo ciclo de renovação.
+                  </p>
+                  <p className="text-xs text-gray-500">Continue praticando! Você ainda pode ver o histórico de suas sessões anteriores.</p>
+                </div>
+              ) : isLoadingFeedback ? (
+                <div className="bg-gray-800 p-20 rounded-3xl border border-gray-700 flex flex-col items-center justify-center space-y-4">
+                  <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-400 font-medium">O Agente de Avaliação está analisando seu progresso...</p>
+                </div>
+              ) : detailedFeedback ? (
+                <div className="space-y-6">
+                  {/* Banner de Upgrade para usuários FREE que atingiram o limite */}
+                  {isFreeUser && hasReachedLimit && (
+                    <div className="bg-purple-900/20 border border-purple-500/30 p-6 rounded-2xl flex items-start gap-4">
+                      <svg className="w-6 h-6 text-purple-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-purple-100 mb-1">Limite do Plano Gratuito Atingido</h4>
+                        <p className="text-xs text-purple-300/80 mb-3">
+                          Você utilizou seu <span className="font-bold">1 feedback gratuito</span>. Assine o PratiquePRO para ter direito a <span className="font-bold">5 feedbacks detalhados por mês</span>!
+                        </p>
+                        <button
+                          onClick={() => setActiveTab('profile')}
+                          className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition-all"
+                        >
+                          Ver Planos de Assinatura
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                    const rawTendencia = String(metric?.tendencia || 'estavel').toLowerCase();
-                    const tendencia = rawTendencia.includes('evolu') || rawTendencia.includes('melhora') ? 'evoluindo' :
-                      rawTendencia.includes('regred') || rawTendencia.includes('queda') ? 'regredindo' : 'estavel';
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/30 p-8 rounded-3xl shadow-xl flex flex-col justify-center">
+                      <h3 className="text-xl font-black mb-4 flex items-center gap-2">
+                        <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Resumo do seu Aprendizado
+                      </h3>
+                      <p className="text-lg text-gray-200 leading-relaxed italic">"{detailedFeedback.resumo_geral}"</p>
+                    </div>
 
-                    const color = score > 70 ? 'text-green-400' : score > 40 ? 'text-yellow-400' : 'text-red-400';
-                    const chartColor = score > 70 ? '#4ade80' : score > 40 ? '#facc15' : '#f87171';
+                    <div className="bg-gray-800 p-6 rounded-3xl border border-gray-700 shadow-xl flex flex-col items-center">
+                      <h3 className="text-xs font-black uppercase text-gray-500 mb-2 tracking-widest">Gráfico de Radar de Competências</h3>
+                      <SimpleRadarChart metrics={radarMetrics} />
+                    </div>
+                  </div>
 
-                    return (
-                      <div key={key} className="bg-gray-800 p-6 rounded-2xl border border-gray-700 flex flex-col justify-between transition-all hover:border-gray-600 group">
-                        <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {detailedFeedback.metricas_atuais && Object.entries(detailedFeedback.metricas_atuais).map(([key, val]) => {
+                      const metric = val as MetricDetail;
+                      const label = key.replace(/_/g, ' ');
+                      let score = Number(metric?.score);
+                      if (isNaN(score) || score === 0) score = 50;
+
+                      const rawTendencia = String(metric?.tendencia || 'estavel').toLowerCase();
+                      const tendencia = rawTendencia.includes('evolu') || rawTendencia.includes('melhora') ? 'evoluindo' :
+                        rawTendencia.includes('regred') || rawTendencia.includes('queda') ? 'regredindo' : 'estavel';
+
+                      const color = score > 70 ? 'text-green-400' : score > 40 ? 'text-yellow-400' : 'text-red-400';
+                      const chartColor = score > 70 ? '#4ade80' : score > 40 ? '#facc15' : '#f87171';
+
+                      return (
+                        <div key={key} className="bg-gray-800 p-6 rounded-2xl border border-gray-700 transition-all hover:border-gray-600 group">
                           <div className="flex justify-between items-start mb-4">
                             <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider group-hover:text-white transition-colors">{label}</h4>
                             <div className="flex items-center gap-1">
@@ -842,65 +923,60 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                             <span className={`text-4xl font-black ${color}`}>{score}</span>
                             <span className="text-gray-600 text-xs mb-1">/ 100</span>
                           </div>
-                          <p className="text-xs text-gray-400 leading-relaxed mb-4 min-h-[3em]">{(detailedFeedback.feedbacks || {} as any)[key] || "Feedback indisponível."}</p>
+                          <p className="text-xs text-gray-400 leading-relaxed">{(detailedFeedback.feedbacks || {} as any)[key] || "Feedback indisponível."}</p>
                         </div>
-                        <div className="border-t border-gray-700 pt-4 mt-auto">
-                          <p className="text-[9px] text-gray-500 uppercase font-black mb-1">Evolução Histórica</p>
-                          <SimpleLineChart
-                            data={(detailedFeedback.dados_grafico_historico || {} as any)[key] || []}
-                            color={chartColor}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-red-500/10 p-8 rounded-3xl border border-red-500/30 text-center">
-                <p className="text-red-400">Não foi possível carregar o feedback detalhado agora. Tente novamente em alguns instantes.</p>
-                <button onClick={loadFeedback} className="mt-4 bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-xl text-sm font-bold">Tentar novamente</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'profile' && (
-          <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-            <form onSubmit={handleSaveProfile} className="bg-gray-800 p-8 rounded-3xl border border-gray-700 space-y-6">
-              <h3 className="text-xl font-bold">Dados Pessoais</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Nome</label>
-                  <input type="text" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase">Sobrenome</label>
-                  <input type="text" value={profileForm.surname} onChange={(e) => setProfileForm({ ...profileForm, surname: e.target.value })} className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase">Telefone</label>
-                <input type="text" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="(00) 00000-0000" className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              {saveMessage && <p className={`text-sm p-3 rounded-xl border ${saveMessage.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>{saveMessage.text}</p>}
-              <button type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all disabled:opacity-50">{isSaving ? "Salvando..." : "Salvar Alterações"}</button>
-            </form>
-            <div className="bg-gray-800 p-8 rounded-3xl border border-gray-700 space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold">Assinatura</h3>
-                <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${user.subscription && user.subscription !== 'free' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-700 text-gray-400'}`}>{user.subscription && user.subscription !== 'free' ? (isCancelled ? 'CANCELADA' : (subscriptionErrorStatus ? `Problema` : (isPending ? 'PROCESSANDO' : 'Ativa'))) : 'Free'}</span>
-              </div>
-              {user.subscription && user.subscription !== 'free' && !isCancelled ? (
-                <button onClick={() => setShowCancelConfirm(true)} className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-3 rounded-xl border border-red-500/20 transition-all">Cancelar Assinatura Atual</button>
               ) : (
-                <button onClick={onSubscribe} className="w-full bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 font-bold py-3 rounded-xl border border-blue-500/20 transition-all">Assinar Agora</button>
+                <div className="bg-red-500/10 p-8 rounded-3xl border border-red-500/30 text-center">
+                  <p className="text-red-400">Não foi possível carregar o feedback detalhado agora. Tente novamente em alguns instantes.</p>
+                  <button onClick={loadFeedback} className="mt-4 bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-xl text-sm font-bold">Tentar novamente</button>
+                </div>
               )}
             </div>
-          </div>
-        )}
-      </main>
-    </div>
+          );
+        })()}
+
+        {
+          activeTab === 'profile' && (
+            <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+              <form onSubmit={handleSaveProfile} className="bg-gray-800 p-8 rounded-3xl border border-gray-700 space-y-6">
+                <h3 className="text-xl font-bold">Dados Pessoais</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Nome</label>
+                    <input type="text" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-400 uppercase">Sobrenome</label>
+                    <input type="text" value={profileForm.surname} onChange={(e) => setProfileForm({ ...profileForm, surname: e.target.value })} className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase">Telefone</label>
+                  <input type="text" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} placeholder="(00) 00000-0000" className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                {saveMessage && <p className={`text-sm p-3 rounded-xl border ${saveMessage.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}>{saveMessage.text}</p>}
+                <button type="submit" disabled={isSaving} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all disabled:opacity-50">{isSaving ? "Salvando..." : "Salvar Alterações"}</button>
+              </form>
+              <div className="bg-gray-800 p-8 rounded-3xl border border-gray-700 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xl font-bold">Assinatura</h3>
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${user.subscription && user.subscription !== 'free' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-gray-700 text-gray-400'}`}>{user.subscription && user.subscription !== 'free' ? (isCancelled ? 'CANCELADA' : (subscriptionErrorStatus ? `Problema` : (isPending ? 'PROCESSANDO' : 'Ativa'))) : 'Free'}</span>
+                </div>
+                {user.subscription && user.subscription !== 'free' && !isCancelled ? (
+                  <button onClick={() => setShowCancelConfirm(true)} className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold py-3 rounded-xl border border-red-500/20 transition-all">Cancelar Assinatura Atual</button>
+                ) : (
+                  <button onClick={onSubscribe} className="w-full bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 font-bold py-3 rounded-xl border border-blue-500/20 transition-all">Assinar Agora</button>
+                )}
+              </div>
+            </div>
+          )
+        }
+      </main >
+    </div >
   );
 };
 

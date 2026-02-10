@@ -58,7 +58,8 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
       subscriptionStatus: profileData.subscription_status,
       cpf: profileData.cpf,
       phone: profileData.phone,
-      termsAcceptedAt: profileData.terms_accepted_at
+      termsAcceptedAt: profileData.terms_accepted_at,
+      qtdFeedbacks: Number(profileData.qtd_feedbacks || 0)
     } as User;
   } catch (err) {
     console.error('[Supabase] Erro ao carregar perfil:', err);
@@ -86,6 +87,8 @@ export const saveSession = async (userId: string, session: SessionResult) => {
     vocabulary_score: Number(session.vocabularyScore),
     grammar_score: Number(session.grammarScore),
     pronunciation_score: Number(session.pronunciationScore),
+    coherence_score: Number(session.coherenceScore || 0),
+    confidence_score: Number(session.confidenceScore || 0),
     fluency_rating: session.fluencyRating,
     feedback: session.feedback,
     duration_seconds: Math.floor(session.durationSeconds || 0),
@@ -109,6 +112,7 @@ export const updateUserStats = async (userId: string, updates: Partial<User>) =>
   if (updates.cpf !== undefined) dbUpdates.cpf = updates.cpf;
   if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
   if (updates.termsAcceptedAt !== undefined) dbUpdates.terms_accepted_at = updates.termsAcceptedAt;
+  if (updates.qtdFeedbacks !== undefined) dbUpdates.qtd_feedbacks = updates.qtdFeedbacks;
   if ((updates as any).name) dbUpdates.name = (updates as any).name;
   if ((updates as any).surname) dbUpdates.surname = (updates as any).surname;
   if ((updates as any).username) dbUpdates.username = (updates as any).username;
@@ -126,6 +130,8 @@ export const getUserHistory = async (userId: string): Promise<SessionResult[]> =
     vocabularyScore: s.vocabulary_score,
     grammarScore: s.grammar_score,
     pronunciationScore: s.pronunciation_score,
+    coherenceScore: s.coherence_score,
+    confidenceScore: s.confidence_score,
     fluencyRating: s.fluency_rating,
     feedback: s.feedback,
     durationSeconds: s.duration_seconds,

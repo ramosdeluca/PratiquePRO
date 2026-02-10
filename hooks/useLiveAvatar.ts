@@ -52,6 +52,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
       sessionPromiseRef.current = null;
       try {
         const session = await sessionToClose;
+        (session as any)._alive = false; // Flag customizada para parar emissões imediatamente
         session.close();
       } catch (e) {
         console.warn("[Live] Error closing session:", e);
@@ -210,11 +211,18 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
               const inputData = e.inputBuffer.getChannelData(0);
               const pcmBlob = createBlob(inputData);
               currentSessionPromise.then(session => {
-                if (isActiveRef.current && session) {
+                // Guarda de Sessão Ultra-Rígida: 
+                // 1. Deve ser a mesma promessa ativa no Ref
+                // 2. O estado geral deve ser ativo (isActiveRef)
+                // 3. A sessão não deve estar em processo de fechamento
+                if (sessionPromiseRef.current === currentSessionPromise && isActiveRef.current && session) {
                   try {
-                    session.sendRealtimeInput({ media: pcmBlob });
+                    // Verificação extra de segurança para evitar erro interno do SDK
+                    if ((session as any)._alive !== false) {
+                      session.sendRealtimeInput({ media: pcmBlob });
+                    }
                   } catch (err) {
-                    // Ignora silenciosamente erros de WebSocket fechado/fechando durante a transição
+                    // Erro silenciado: WebSocket em transição
                   }
                 }
               }).catch(() => { });
@@ -359,11 +367,15 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
   }, [avatarConfig, disconnect, onTranscriptUpdate]);
 
   const sendText = useCallback((text: string) => {
-    if (sessionPromiseRef.current && isActiveRef.current) {
-      sessionPromiseRef.current.then(session => {
-        if (!session || !isActiveRef.current) return;
+    const currentPromise = sessionPromiseRef.current;
+    if (currentPromise && isActiveRef.current) {
+      currentPromise.then(session => {
+        if (!session || !isActiveRef.current || sessionPromiseRef.current !== currentPromise) return;
 
         try {
+          // Só envia se esta sessão ainda for a ativa no ref E não estiver marcada como morta
+          if (sessionPromiseRef.current !== currentPromise || !isActiveRef.current || (session as any)._alive === false) return;
+
           if (typeof (session as any).sendClientContent === 'function') {
             (session as any).sendClientContent({
               turns: [{ role: 'user', parts: [{ text }] }]
@@ -372,7 +384,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
             (session as any).send({ parts: [{ text }] });
           }
         } catch (err) {
-          // Ignora erros de estado do WebSocket para manter o log limpo
+          // Silenciado: WebSocket em transição
         }
       });
     }
