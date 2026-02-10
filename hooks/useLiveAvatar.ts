@@ -6,10 +6,12 @@ import { AvatarConfig } from '../types';
 
 interface UseLiveAvatarProps {
   avatarConfig: AvatarConfig;
+  userName?: string;
+  previousContext?: string;
   onTranscriptUpdate: (text: string, isUser: boolean) => void;
 }
 
-export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvatarProps) => {
+export const useLiveAvatar = ({ avatarConfig, userName, previousContext, onTranscriptUpdate }: UseLiveAvatarProps) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isTalking, setIsTalking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,8 +171,16 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
         streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
 
+      if (!avatarConfig || !avatarConfig.voice) {
+        throw new Error("Configuração do avatar inválida ou incompleta.");
+      }
+
       const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || (window as any).VITE_GEMINI_API_KEY;
-      if (!apiKey) throw new Error("Chave de API ausente.");
+      if (!apiKey) throw new Error("Chave de API ausente. Verifique suas configurações.");
+
+      console.log(`[useLiveAvatar] Connecting with avatar: ${avatarConfig.name}, voice: ${avatarConfig.voice}`);
+      if (userName) console.log(`[useLiveAvatar] Personalization enabled for user: ${userName}`);
+      if (previousContext) console.log(`[useLiveAvatar] Continuity enabled. Context length: ${previousContext.length} chars`);
 
       const ai = new GoogleGenAI({ apiKey });
 
@@ -181,8 +191,19 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: avatarConfig.voice } },
           },
-          systemInstruction: `YOU ARE A NATIVE SPEAKER CONVERSATION PARTNER.
+          systemInstruction: `
+          ${previousContext ? `[IMPORTANT: RESUME PREVIOUS CONVERSATION]
+          Last time, you and the user were talking about:
+          "${previousContext}"
+          
+          YOUR GOAL: Resume the conversation NATURALLY from where it left off.
+          - Do NOT start a new random topic.
+          - Ask a follow-up question related to the last context.
+          - If the last context was a goodbye, start fresh but mention "It's good to see you again!".` : ''}
+
+          YOU ARE A NATIVE SPEAKER CONVERSATION PARTNER${userName ? ` talking to ${userName}` : ''}.
           - CONCISE RESPONSES: Be natural, conversational, and direct. Use NO MORE THAN 2 SENTENCES per turn.
+          - PERSONAL TOUCH: ${userName ? `Occasionally use ${userName}'s name naturally in conversation (not every sentence).` : 'Be warm and engaging.'}
           - MANDATORY RULE: NEVER repeat, parrot, or rephrase the user's sentence back to them if they are correct.
           - NO CONFIRMATION: Do not say "You said correctly: ..." or similar.
           - FLOW: If the user is correct, respond IMMEDIATELY to their question or comment like a real human friend.
@@ -364,7 +385,7 @@ export const useLiveAvatar = ({ avatarConfig, onTranscriptUpdate }: UseLiveAvata
       isConnectingRef.current = false;
       disconnect(false);
     }
-  }, [avatarConfig, disconnect, onTranscriptUpdate]);
+  }, [avatarConfig, userName, previousContext, disconnect, onTranscriptUpdate]);
 
   const sendText = useCallback((text: string) => {
     const currentPromise = sessionPromiseRef.current;

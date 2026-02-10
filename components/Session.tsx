@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, AvatarConfig, ChatMessage, SessionResult } from '../types';
 import { useLiveAvatar } from '../hooks/useLiveAvatar';
 import { evaluateSession } from '../services/gemini';
+import { getLastSessionContext } from '../services/supabase';
 
 interface SessionProps {
   user: User;
@@ -20,6 +21,24 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   const [showTranscript, setShowTranscript] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [previousContext, setPreviousContext] = useState<string | undefined>(undefined);
+  const [isLoadingContext, setIsLoadingContext] = useState(true);
+
+  useEffect(() => {
+    // Carrega o contexto da última conversa ao montar
+    if (user.id) {
+      getLastSessionContext(user.id, avatar.name).then(context => {
+        if (context) {
+          console.log('[Session] Contexto anterior carregado:', context.substring(0, 50) + '...');
+          setPreviousContext(context);
+        }
+      }).finally(() => {
+        setIsLoadingContext(false);
+      });
+    } else {
+      setIsLoadingContext(false);
+    }
+  }, [user.id, avatar.name]);
 
   const [remainingSeconds, setRemainingSeconds] = useState(Math.max(0, Math.floor(Number(user.creditsRemaining || 0) * 60)));
   const [showCreditModal, setShowCreditModal] = useState(false);
@@ -66,6 +85,8 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
 
   const { connect, disconnect, isConnected, isTalking, isReconnecting, error: hookError, analyserNode, sendText } = useLiveAvatar({
     avatarConfig: avatar,
+    userName: user.name?.split(' ')[0] || user.username,
+    previousContext: isLoadingContext ? undefined : previousContext, // Garante que só passa se já carregou
     onTranscriptUpdate: handleTranscriptUpdate
   });
 
@@ -267,7 +288,13 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
               <img src={avatar.avatarImage} className="w-24 h-24 mx-auto mb-4 rounded-full border-4 border-blue-500" />
               <h2 className="text-2xl font-bold mb-2">Praticar com {avatar.name}</h2>
               <p className="text-gray-400 text-sm mb-6">{avatar.description}</p>
-              <button onClick={handleStart} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-xl font-bold transition-all active:scale-95">Iniciar Conversa</button>
+              <button
+                onClick={handleStart}
+                disabled={isLoadingContext}
+                className={`w-full py-4 rounded-xl font-bold transition-all active:scale-95 ${isLoadingContext ? 'bg-gray-700 text-gray-400 cursor-wait' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+              >
+                {isLoadingContext ? 'Carregando memórias...' : 'Iniciar Conversa'}
+              </button>
               <button onClick={handleCancelWithSync} className="mt-4 text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest">Cancelar</button>
             </div>
           </div>

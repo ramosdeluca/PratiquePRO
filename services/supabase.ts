@@ -87,15 +87,21 @@ export const saveSession = async (userId: string, session: SessionResult) => {
     vocabulary_score: Number(session.vocabularyScore),
     grammar_score: Number(session.grammarScore),
     pronunciation_score: Number(session.pronunciationScore),
-    coherence_score: Number(session.coherenceScore || 0),
-    confidence_score: Number(session.confidenceScore || 0),
+    // coherence_score: Number(session.coherenceScore || 0), // Removido temporariamente (coluna inexistente)
+    // confidence_score: Number(session.confidenceScore || 0), // Removido temporariamente (coluna inexistente)
     fluency_rating: session.fluencyRating,
     feedback: session.feedback,
     duration_seconds: Math.floor(session.durationSeconds || 0),
     transcript: session.transcript || "",
     date: session.date || new Date().toISOString()
   };
+
   const { error } = await supabase.from('sessions').insert([payload]);
+
+  if (error) {
+    console.error("ERRO CRÍTICO AO SALVAR SESSÃO:", error);
+  }
+
   return !error;
 };
 
@@ -122,22 +128,56 @@ export const updateUserStats = async (userId: string, updates: Partial<User>) =>
 };
 
 export const getUserHistory = async (userId: string): Promise<SessionResult[]> => {
-  const { data, error } = await supabase.from('sessions').select('*').eq('user_id', userId).order('date', { ascending: false });
-  if (error) return [];
+  // Remove colunas que podem não existir ainda no banco para evitar erro 400
+  const { data, error } = await supabase.from('sessions')
+    .select('user_id, avatar_name, overall_score, vocabulary_score, grammar_score, pronunciation_score, fluency_rating, feedback, duration_seconds, transcript, date')
+    .eq('user_id', userId)
+    .order('date', { ascending: false });
+
+  if (error) {
+    console.error("Erro ao buscar histórico:", error);
+    return [];
+  }
+
   return (data || []).map(s => ({
     avatarName: s.avatar_name,
     overallScore: s.overall_score,
     vocabularyScore: s.vocabulary_score,
     grammarScore: s.grammar_score,
     pronunciationScore: s.pronunciation_score,
-    coherenceScore: s.coherence_score,
-    confidenceScore: s.confidence_score,
+    coherenceScore: 0, // Default sem erro
+    confidenceScore: 0, // Default sem erro
     fluencyRating: s.fluency_rating,
     feedback: s.feedback,
     durationSeconds: s.duration_seconds,
     transcript: s.transcript,
     date: s.date
   }));
+};
+
+export const getLastSessionContext = async (userId: string, avatarName: string): Promise<string | null> => {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('transcript, date')
+    .eq('user_id', userId)
+    .eq('avatar_name', avatarName)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data || !data.transcript) return null;
+
+  // Pega as últimas 15 linhas para dar contexto
+  const lines = data.transcript.split('\n')
+    .filter(line => line.trim() !== '')
+    .filter(line => !line.trim().startsWith('(System:') && !line.trim().startsWith('[System:')); // Remove logs de sistema
+
+  if (lines.length === 0) return null;
+
+  const lastLines = lines.slice(-15).join('\n');
+  const sessionDate = new Date(data.date).toLocaleString('pt-BR');
+
+  return `[Conversa de ${sessionDate}]:\n${lastLines}`;
 };
 
 export const logPayment = async (
