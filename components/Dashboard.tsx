@@ -40,7 +40,8 @@ const AVATARS: AvatarConfig[] = [
     - SENTENCES: Keep them short and easy to understand.`,
     description: 'Básico - Paciente e didática, Sarah ajuda iniciantes a ganhar confiança com vocabulário simples e repetição de frases.',
     color: 'bg-blue-400',
-    avatarImage: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=800&auto=format&fit=crop',
+    avatarImage: '/Sarahavatar.png',
+    imagePosition: 'object-top',
     videoUrl: ''
   },
   {
@@ -52,7 +53,8 @@ const AVATARS: AvatarConfig[] = [
     RULE: NEVER repeat the user's sentence. If they speak well, just keep the chat going. Use "Correction:" only if they fail grammar completely.`,
     description: 'Avançado - Um cara legal que adora esportes. Ele conversa naturalmente e te ajuda a corrigir erros de forma direta e sem enrolação.',
     color: 'bg-orange-500',
-    avatarImage: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=800&auto=format&fit=crop',
+    avatarImage: '/Leoavatar.png',
+    imagePosition: 'object-top',
     videoUrl: ''
   },
   {
@@ -64,7 +66,8 @@ const AVATARS: AvatarConfig[] = [
     RULE: Do not parrot the user. Respond to the ideas, not the grammar, unless there is an error to fix using "Correction:".`,
     description: 'Avançado - Profissional e acolhedora. Ela foca no diálogo sobre carreira e é rigorosa em manter a conversa fluindo com qualidade.',
     color: 'bg-purple-500',
-    avatarImage: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop',
+    avatarImage: '/sophiaavatar.png',
+    imagePosition: 'object-[50%_20%]',
     videoUrl: ''
   },
   {
@@ -76,7 +79,8 @@ const AVATARS: AvatarConfig[] = [
     RULE: Strictly ignore correct sentences and move forward. Only use "Correction:" for significant blunders.`,
     description: 'Avançado - Sotaque britânico polido. Ele engaja em conversas inteligentes e corrige rigorosamente seus erros para você soar impecável.',
     color: 'bg-emerald-600',
-    avatarImage: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?q=80&w=800&auto=format&fit=crop',
+    avatarImage: '/Jamesavatar.png',
+    imagePosition: 'object-[50%_20%]',
     videoUrl: ''
   },
   {
@@ -88,7 +92,8 @@ const AVATARS: AvatarConfig[] = [
     RULE: NO REPEATING. Just chat like we are on a call. Use "Correction:" if I say something really weird.`,
     description: 'Avançado - Energia pura! Ela fala como uma jovem nativa, usa gírias e não deixa passar nenhum erro de gramática enquanto fofoca.',
     color: 'bg-rose-500',
-    avatarImage: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=800&auto=format&fit=crop',
+    avatarImage: '/Mayaavatar.png',
+    imagePosition: 'object-[50%_20%]',
     videoUrl: ''
   }
 ];
@@ -656,7 +661,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                   onClick={() => handleAvatarClick(avatar)}
                 >
                   <div className="h-64 overflow-hidden relative">
-                    <img src={avatar.avatarImage} className={`w-full h-full object-cover transition-transform duration-500 ${isDisabled ? '' : 'group-hover:scale-110'}`} />
+                    <img src={avatar.avatarImage} className={`w-full h-full object-cover transition-transform duration-500 ${isDisabled ? '' : 'group-hover:scale-110'} ${avatar.imagePosition || 'object-center'}`} />
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent opacity-60"></div>
                   </div>
                   <div className="p-6">

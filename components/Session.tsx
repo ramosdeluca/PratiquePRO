@@ -260,7 +260,7 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
 
         <div className="flex-1 flex flex-col items-center justify-center relative bg-gradient-to-b from-gray-800 to-gray-950">
           <div className="relative w-52 h-52 sm:w-80 sm:h-80 md:w-96 md:h-96 lg:w-[32rem] lg:h-[32rem] rounded-full overflow-hidden border-4 border-white/10 shadow-2xl bg-gray-800">
-            <img ref={avatarImageRef} src={avatar.avatarImage} alt={avatar.name} className="w-full h-full object-cover animate-alive" />
+            <img ref={avatarImageRef} src={avatar.avatarImage} alt={avatar.name} className={`w-full h-full object-cover animate-alive ${avatar.imagePosition || 'object-center'}`} />
           </div>
 
           <div className="mt-8 h-12 flex flex-col items-center">
@@ -285,7 +285,7 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
         {!hasStarted && (
           <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="bg-gray-800 p-8 rounded-3xl shadow-2xl border border-gray-700 max-w-sm w-full text-center">
-              <img src={avatar.avatarImage} className="w-24 h-24 mx-auto mb-4 rounded-full border-4 border-blue-500" />
+              <img src={avatar.avatarImage} className={`w-24 h-24 mx-auto mb-4 rounded-full border-4 border-blue-500 object-cover ${avatar.imagePosition || 'object-center'}`} />
               <h2 className="text-2xl font-bold mb-2">Praticar com {avatar.name}</h2>
               <p className="text-gray-400 text-sm mb-6">{avatar.description}</p>
               <button

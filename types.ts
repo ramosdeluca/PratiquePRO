@@ -97,6 +97,7 @@ export interface AvatarConfig {
   color: string;
   avatarImage: string;
   videoUrl: string;
+  imagePosition?: string;
 }
 
 export const RANKS = [
