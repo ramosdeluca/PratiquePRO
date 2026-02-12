@@ -161,7 +161,7 @@ export const generateDetailedFeedback = async (currentTranscript: string, histor
 
   const genAI = new GoogleGenAI({ apiKey });
   const trans = currentTranscript.split('\n').filter(l => l.trim()).slice(-10).join('\n');
-  const hist = history.slice(0, 10).map(s => ({
+  const hist = history.slice(0, 5).map(s => ({
     d: s.date.split('T')[0],
     s: {
       fluencia: s.overallScore,
@@ -198,7 +198,7 @@ export const generateDetailedFeedback = async (currentTranscript: string, histor
                     }` }]
         }],
         generationConfig: {
-          maxOutputTokens: 2560, // Aumentado para garantir JSON completo sem custo Pro
+          maxOutputTokens: 800, // Aumentado para garantir JSON completo sem custo Pro
           temperature: 0.1,
           responseMimeType: "application/json"
         },

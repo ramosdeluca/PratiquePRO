@@ -290,46 +290,39 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
   };
 
   const loadFeedback = async () => {
+    if (!user.id) return;
+
+    setIsLoadingFeedback(true);
+    try {
+      const stored = await getStoredDetailedFeedback(user.id);
+      if (stored && isValidFeedback(stored.content)) {
+        setDetailedFeedback(stored.content);
+        setLastEvaluatedSessionDate(stored.lastDate);
+      } else {
+        setDetailedFeedback(null);
+      }
+    } catch (err) {
+      console.error("[Dashboard] Error loading feedback:", err);
+      setDetailedFeedback(null);
+    } finally {
+      setIsLoadingFeedback(false);
+    }
+  };
+
+  const handleGenerateFeedback = async () => {
     if (history.length === 0 || !user.id) return;
 
     const latestSession = history[0];
-
-    // Define limite baseado no tipo de assinatura
     const isFreeUser = !user.subscription || user.subscription === 'free' || user.subscription === 'FREE';
     const feedbackLimit = isFreeUser ? 1 : 5;
     const currentFeedbackCount = user.qtdFeedbacks || 0;
     const hasReachedLimit = currentFeedbackCount >= feedbackLimit;
 
+    // Double check limit before generating
+    if (hasReachedLimit) return;
+
     setIsLoadingFeedback(true);
     try {
-      const stored = await getStoredDetailedFeedback(user.id);
-
-      // Para usuários FREE que atingiram o limite: sempre mostra o cache (mesmo desatualizado)
-      if (isFreeUser && hasReachedLimit && stored && isValidFeedback(stored.content)) {
-        setDetailedFeedback(stored.content);
-        setLastEvaluatedSessionDate(stored.lastDate);
-        setIsLoadingFeedback(false);
-        return; // Não tenta gerar novo feedback
-      }
-
-      // Para outros casos: valida se o feedback armazenado está atualizado
-      if (stored && isValidFeedback(stored.content) && new Date(stored.lastDate).getTime() >= new Date(latestSession.date).getTime()) {
-        setDetailedFeedback(stored.content);
-        setLastEvaluatedSessionDate(stored.lastDate);
-        setIsLoadingFeedback(false);
-        // NÃO incrementa qtd_feedbacks ao carregar do cache
-        return;
-      }
-
-      // Verifica se atingiu o limite antes de gerar novo
-      if (hasReachedLimit) {
-        // Se atingiu limite mas não tem cache, mostra null (tela de limite)
-        setDetailedFeedback(null);
-        setIsLoadingFeedback(false);
-        return;
-      }
-
-      // Se não houver ou estiver inválido/antigo, gera novo
       console.log("[Dashboard] Gerando novo feedback detalhado...");
       const feedback = await generateDetailedFeedback(latestSession.transcript, history);
       if (feedback && isValidFeedback(feedback)) {
@@ -337,13 +330,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
         setLastEvaluatedSessionDate(latestSession.date);
         await upsertDetailedFeedback(user.id, feedback, latestSession.date);
 
-        // INCREMENTA qtd_feedbacks APENAS quando a IA gera um novo feedback
         const newCount = currentFeedbackCount + 1;
         await updateUserStats(user.id, { qtdFeedbacks: newCount });
         if (onPartialUpdate) onPartialUpdate({ qtdFeedbacks: newCount });
       }
     } catch (err) {
-      console.error("[Dashboard] Error loading feedback:", err);
+      console.error("[Dashboard] Error generating feedback:", err);
+      alert("Erro ao gerar feedback. Tente novamente.");
     } finally {
       setIsLoadingFeedback(false);
     }
@@ -833,7 +826,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
 
             return (
               <div className="space-y-8 animate-fade-in">
-                {/* Contador de Feedbacks Mensais */}
                 <div className={`p-4 rounded-2xl flex items-center justify-between ${isFreeUser ? 'bg-purple-900/20 border border-purple-500/30' : 'bg-blue-900/20 border border-blue-500/30'}`}>
                   <div className="flex items-center gap-3">
                     <svg className={`w-5 h-5 ${isFreeUser ? 'text-purple-400' : 'text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -841,9 +833,34 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                       <p className={`text-sm font-bold ${isFreeUser ? 'text-purple-100' : 'text-blue-100'}`}>
                         {isFreeUser ? 'Plano Gratuito' : 'Feedbacks Mensais'}
                       </p>
-                      <p className={`text-xs ${isFreeUser ? 'text-purple-300/70' : 'text-blue-300/70'}`}>
-                        {isFreeUser ? 'Assine para ter 5 feedbacks por mês' : 'Os feedbacks são gerados após conversas novas'}
+                      <p className={`text-xs ${isFreeUser ? 'text-purple-300/70' : 'text-blue-300/70'} mb-2`}>
+                        {isFreeUser ? 'Assine para ter 5 feedbacks por mês' : 'Limitado a 5 feedbacks mensais. Habilitado apenas para novas conversas.'}
                       </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          onClick={handleGenerateFeedback}
+                          disabled={isLoadingFeedback || hasReachedLimit || history.length === 0 || (!!detailedFeedback && lastEvaluatedSessionDate === history[0].date)}
+                          className={`
+                            px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2
+                            ${isFreeUser
+                              ? 'bg-purple-600 hover:bg-purple-500 text-white disabled:bg-purple-900/50 disabled:text-purple-400/50 disabled:cursor-not-allowed'
+                              : 'bg-blue-600 hover:bg-blue-500 text-white disabled:bg-blue-900/50 disabled:text-blue-400/50 disabled:cursor-not-allowed'}
+                          `}
+                        >
+                          {isLoadingFeedback ? (
+                            <>
+                              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                              Gerando...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                              Gerar novo feedback
+                            </>
+                          )}
+                        </button>
+                        {hasReachedLimit && <span className="text-[10px] text-red-400 font-medium">Limite atingido</span>}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -941,12 +958,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-red-500/10 p-8 rounded-3xl border border-red-500/30 text-center">
-                    <p className="text-red-400">Não foi possível carregar o feedback detalhado agora. Tente novamente em alguns instantes.</p>
-                    <button onClick={loadFeedback} className="mt-4 bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-xl text-sm font-bold">Tentar novamente</button>
-                  </div>
+                  <div className="bg-gray-800 p-12 rounded-3xl border border-gray-700 text-center space-y-4">
+                    <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto text-gray-500">
+                      <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-300">Nenhum feedback disponível</h3>
+                    <p className="text-gray-500 max-w-sm mx-auto">
+                      Gere um novo feedback acima para ver sua análise detalhada ou realize novas sessões de prática.
+                    </p>
+                  </div >
                 )}
-              </div>
+              </div >
             );
           })()
         }
