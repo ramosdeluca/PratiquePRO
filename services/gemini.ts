@@ -73,8 +73,22 @@ const MODELS = {
 };
 
 export const evaluateSession = async (transcript: string): Promise<Omit<SessionResult, 'durationSeconds' | 'date' | 'avatarName'>> => {
-  if (!transcript || transcript.trim().length < 10) {
-    return { overallScore: 10, vocabularyScore: 10, grammarScore: 10, pronunciationScore: 10, coherenceScore: 10, confidenceScore: 10, feedback: "Diálogo insuficiente.", fluencyRating: 'Beginner', transcript };
+  // Validação mais rigorosa para conversas muito curtas
+  const textLength = transcript ? transcript.trim().length : 0;
+  const wordCount = transcript ? transcript.trim().split(/\s+/).length : 0;
+
+  if (textLength < 50 || wordCount < 10) {
+    return {
+      overallScore: 10,
+      vocabularyScore: 10,
+      grammarScore: 10,
+      pronunciationScore: 10,
+      coherenceScore: 10,
+      confidenceScore: 10,
+      feedback: "Diálogo muito curto para uma avaliação precisa. Tente conversar mais tópicos na próxima vez!",
+      fluencyRating: 'Beginner',
+      transcript
+    };
   }
 
   const apiKey = getApiKey();
@@ -96,7 +110,9 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
                         3. Use entre 60 e 90 palavras no total.
                         4. Use tópicos (bullet points) para listar erros e dicas.
                         5. Cite obrigatoriamente um ponto forte e um ponto de correção gramatical do diálogo.
+                        5. Cite obrigatoriamente um ponto forte e um ponto de correção gramatical do diálogo.
                         6. Dê dicas práticas de estudo.
+                        7. IMPORTANTE: Se o diálogo for muito curto (apenas saudações ou frases simples), dê notas BAIXAS (abaixo de 40) e mencione que falta profundidade. Avalie a CAPACIDADE demonstrada, não apenas a ausência de erros.
                         
                         Transcript: ${prunedTranscript}
                         
