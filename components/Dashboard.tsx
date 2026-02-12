@@ -736,55 +736,59 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
                             </div>
                             <div>
                               <h4 className="font-bold notranslate" translate="no">Conversa com {session.avatarName}</h4>
-                              <p className="text-xs text-gray-500">{new Date(session.date).toLocaleDateString('pt-BR')}</p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(session.date).toLocaleDateString('pt-BR')} às {new Date(session.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • Duração: {Math.floor(session.durationSeconds / 60)}min {Math.floor(session.durationSeconds % 60).toString().padStart(2, '0')}seg
+                              </p>
                             </div>
                           </div>
                           <button onClick={() => setExpandedHistoryId(expandedHistoryId === actualIdx ? null : actualIdx)} className={`p-2 hover:bg-gray-700 rounded-lg transition-colors ${expandedHistoryId === actualIdx ? 'rotate-180' : ''}`}>
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                           </button>
                         </div>
-                        {expandedHistoryId === actualIdx && (
-                          <div className="px-6 pb-6 pt-2 border-t border-gray-700 bg-gray-900/30 animate-fade-in space-y-6">
-                            <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-                              <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-2 tracking-widest">Feedback da Sessão</h5>
-                              <p className="text-sm text-gray-300 italic">"{session.feedback}"</p>
-                            </div>
+                        {
+                          expandedHistoryId === actualIdx && (
+                            <div className="px-6 pb-6 pt-2 border-t border-gray-700 bg-gray-900/30 animate-fade-in space-y-6">
+                              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                                <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-2 tracking-widest">Feedback da Sessão</h5>
+                                <p className="text-sm text-gray-300 italic">"{session.feedback}"</p>
+                              </div>
 
-                            <div className="grid grid-cols-3 gap-2">
-                              <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Vocab</p><p className="font-bold text-xs">{session.vocabularyScore}</p></div>
-                              <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Gram</p><p className="font-bold text-xs">{session.grammarScore}</p></div>
-                              <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Pron</p><p className="font-bold text-xs">{session.pronunciationScore}</p></div>
-                            </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Vocab</p><p className="font-bold text-xs">{session.vocabularyScore}</p></div>
+                                <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Gram</p><p className="font-bold text-xs">{session.grammarScore}</p></div>
+                                <div className="text-center bg-gray-800 p-2 rounded-lg"><p className="text-[9px] uppercase text-gray-500">Pron</p><p className="font-bold text-xs">{session.pronunciationScore}</p></div>
+                              </div>
 
-                            <div className="border-t border-gray-700 pt-4">
-                              <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-3 tracking-widest">Transcrição Completa</h5>
-                              <div className="bg-gray-900/80 rounded-xl p-4 max-h-[400px] overflow-y-auto custom-scrollbar space-y-4 shadow-inner">
-                                {session.transcript ? (
-                                  session.transcript.split('\n').filter(line => line.trim()).map((line, lIdx) => {
-                                    const isUser = line.toLowerCase().startsWith('user:');
-                                    const isAvatar = line.toLowerCase().startsWith('avatar:');
-                                    const text = line.replace(/^(User|Avatar): /i, '');
+                              <div className="border-t border-gray-700 pt-4">
+                                <h5 className="text-[10px] uppercase text-gray-500 font-bold mb-3 tracking-widest">Transcrição Completa</h5>
+                                <div className="bg-gray-900/80 rounded-xl p-4 max-h-[400px] overflow-y-auto custom-scrollbar space-y-4 shadow-inner">
+                                  {session.transcript ? (
+                                    session.transcript.split('\n').filter(line => line.trim()).map((line, lIdx) => {
+                                      const isUser = line.toLowerCase().startsWith('user:');
+                                      const isAvatar = line.toLowerCase().startsWith('avatar:');
+                                      const text = line.replace(/^(User|Avatar): /i, '');
 
-                                    if (!isUser && !isAvatar) return <p key={lIdx} className="text-[11px] text-gray-500 text-center py-1">{line}</p>;
+                                      if (!isUser && !isAvatar) return <p key={lIdx} className="text-[11px] text-gray-500 text-center py-1">{line}</p>;
 
-                                    return (
-                                      <div key={lIdx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-                                        <span className="text-[8px] text-gray-600 mb-0.5 uppercase font-black tracking-tighter notranslate" translate="no">
-                                          {isUser ? 'Você' : session.avatarName}
-                                        </span>
-                                        <div className={`text-xs px-4 py-2.5 rounded-2xl max-w-[90%] leading-relaxed ${isUser ? 'bg-blue-600/20 text-blue-100 border border-blue-500/20 rounded-tr-none' : 'bg-gray-800 text-gray-300 border border-gray-700 rounded-tl-none'}`}>
-                                          {text}
+                                      return (
+                                        <div key={lIdx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+                                          <span className="text-[8px] text-gray-600 mb-0.5 uppercase font-black tracking-tighter notranslate" translate="no">
+                                            {isUser ? 'Você' : session.avatarName}
+                                          </span>
+                                          <div className={`text-xs px-4 py-2.5 rounded-2xl max-w-[90%] leading-relaxed ${isUser ? 'bg-blue-600/20 text-blue-100 border border-blue-500/20 rounded-tr-none' : 'bg-gray-800 text-gray-300 border border-gray-700 rounded-tl-none'}`}>
+                                            {text}
+                                          </div>
                                         </div>
-                                      </div>
-                                    );
-                                  })
-                                ) : (
-                                  <p className="text-gray-600 text-[10px] text-center italic">Transcrição indisponível para esta sessão.</p>
-                                )}
+                                      );
+                                    })
+                                  ) : (
+                                    <p className="text-gray-600 text-[10px] text-center italic">Transcrição indisponível para esta sessão.</p>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          )
+                        }
                       </div>
                     );
                   })}
@@ -817,132 +821,135 @@ const Dashboard: React.FC<DashboardProps> = ({ user, history, onStartSession, on
               </>
             )}
           </div>
-        )}
+        )
+        }
 
-        {activeTab === 'feedback' && (() => {
-          const isFreeUser = !user.subscription || user.subscription === 'free' || user.subscription === 'FREE';
-          const feedbackLimit = isFreeUser ? 1 : 5;
-          const currentCount = user.qtdFeedbacks || 0;
-          const hasReachedLimit = currentCount >= feedbackLimit;
+        {
+          activeTab === 'feedback' && (() => {
+            const isFreeUser = !user.subscription || user.subscription === 'free' || user.subscription === 'FREE';
+            const feedbackLimit = isFreeUser ? 1 : 5;
+            const currentCount = user.qtdFeedbacks || 0;
+            const hasReachedLimit = currentCount >= feedbackLimit;
 
-          return (
-            <div className="space-y-8 animate-fade-in">
-              {/* Contador de Feedbacks Mensais */}
-              <div className={`p-4 rounded-2xl flex items-center justify-between ${isFreeUser ? 'bg-purple-900/20 border border-purple-500/30' : 'bg-blue-900/20 border border-blue-500/30'}`}>
-                <div className="flex items-center gap-3">
-                  <svg className={`w-5 h-5 ${isFreeUser ? 'text-purple-400' : 'text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                  <div>
-                    <p className={`text-sm font-bold ${isFreeUser ? 'text-purple-100' : 'text-blue-100'}`}>
-                      {isFreeUser ? 'Plano Gratuito' : 'Feedbacks Mensais'}
-                    </p>
-                    <p className={`text-xs ${isFreeUser ? 'text-purple-300/70' : 'text-blue-300/70'}`}>
-                      {isFreeUser ? 'Assine para ter 5 feedbacks por mês' : 'Os feedbacks são gerados após conversas novas'}
-                    </p>
+            return (
+              <div className="space-y-8 animate-fade-in">
+                {/* Contador de Feedbacks Mensais */}
+                <div className={`p-4 rounded-2xl flex items-center justify-between ${isFreeUser ? 'bg-purple-900/20 border border-purple-500/30' : 'bg-blue-900/20 border border-blue-500/30'}`}>
+                  <div className="flex items-center gap-3">
+                    <svg className={`w-5 h-5 ${isFreeUser ? 'text-purple-400' : 'text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div>
+                      <p className={`text-sm font-bold ${isFreeUser ? 'text-purple-100' : 'text-blue-100'}`}>
+                        {isFreeUser ? 'Plano Gratuito' : 'Feedbacks Mensais'}
+                      </p>
+                      <p className={`text-xs ${isFreeUser ? 'text-purple-300/70' : 'text-blue-300/70'}`}>
+                        {isFreeUser ? 'Assine para ter 5 feedbacks por mês' : 'Os feedbacks são gerados após conversas novas'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-2xl font-black ${isFreeUser ? 'text-purple-400' : 'text-blue-400'}`}>{currentCount}/{feedbackLimit}</p>
+                    <p className={`text-[10px] uppercase font-bold ${isFreeUser ? 'text-purple-300/50' : 'text-blue-300/50'}`}>Utilizados</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className={`text-2xl font-black ${isFreeUser ? 'text-purple-400' : 'text-blue-400'}`}>{currentCount}/{feedbackLimit}</p>
-                  <p className={`text-[10px] uppercase font-bold ${isFreeUser ? 'text-purple-300/50' : 'text-blue-300/50'}`}>Utilizados</p>
-                </div>
-              </div>
 
-              {history.length === 0 ? (
-                <div className="bg-gray-800 p-12 rounded-3xl border border-gray-700 text-center">
-                  <p className="text-gray-500">Realize sua primeira sessão para receber feedback detalhado.</p>
-                </div>
-              ) : hasReachedLimit && !isFreeUser ? (
-                <div className="bg-red-900/20 border border-red-500/30 p-12 rounded-3xl text-center space-y-4">
-                  <svg className="w-16 h-16 mx-auto text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                  <h3 className="text-xl font-black text-red-400">Limite Mensal Atingido</h3>
-                  <p className="text-gray-300 max-w-md mx-auto">
-                    Você utilizou seus <span className="font-bold text-red-400">5 feedbacks detalhados</span> deste mês.
-                    O contador será zerado automaticamente no próximo ciclo de renovação.
-                  </p>
-                  <p className="text-xs text-gray-500">Continue praticando! Você ainda pode ver o histórico de suas sessões anteriores.</p>
-                </div>
-              ) : isLoadingFeedback ? (
-                <div className="bg-gray-800 p-20 rounded-3xl border border-gray-700 flex flex-col items-center justify-center space-y-4">
-                  <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-gray-400 font-medium">O Agente de Avaliação está analisando seu progresso...</p>
-                </div>
-              ) : detailedFeedback ? (
-                <div className="space-y-6">
-                  {/* Banner de Upgrade para usuários FREE que atingiram o limite */}
-                  {isFreeUser && hasReachedLimit && (
-                    <div className="bg-purple-900/20 border border-purple-500/30 p-6 rounded-2xl flex items-start gap-4">
-                      <svg className="w-6 h-6 text-purple-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                      <div className="flex-1">
-                        <h4 className="text-sm font-bold text-purple-100 mb-1">Limite do Plano Gratuito Atingido</h4>
-                        <p className="text-xs text-purple-300/80 mb-3">
-                          Você utilizou seu <span className="font-bold">1 feedback gratuito</span>. Assine o PratiquePRO para ter direito a <span className="font-bold">5 feedbacks detalhados por mês</span>!
-                        </p>
-                        <button
-                          onClick={() => setActiveTab('profile')}
-                          className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition-all"
-                        >
-                          Ver Planos de Assinatura
-                        </button>
+                {history.length === 0 ? (
+                  <div className="bg-gray-800 p-12 rounded-3xl border border-gray-700 text-center">
+                    <p className="text-gray-500">Realize sua primeira sessão para receber feedback detalhado.</p>
+                  </div>
+                ) : hasReachedLimit && !isFreeUser ? (
+                  <div className="bg-red-900/20 border border-red-500/30 p-12 rounded-3xl text-center space-y-4">
+                    <svg className="w-16 h-16 mx-auto text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <h3 className="text-xl font-black text-red-400">Limite Mensal Atingido</h3>
+                    <p className="text-gray-300 max-w-md mx-auto">
+                      Você utilizou seus <span className="font-bold text-red-400">5 feedbacks detalhados</span> deste mês.
+                      O contador será zerado automaticamente no próximo ciclo de renovação.
+                    </p>
+                    <p className="text-xs text-gray-500">Continue praticando! Você ainda pode ver o histórico de suas sessões anteriores.</p>
+                  </div>
+                ) : isLoadingFeedback ? (
+                  <div className="bg-gray-800 p-20 rounded-3xl border border-gray-700 flex flex-col items-center justify-center space-y-4">
+                    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-gray-400 font-medium">O Agente de Avaliação está analisando seu progresso...</p>
+                  </div>
+                ) : detailedFeedback ? (
+                  <div className="space-y-6">
+                    {/* Banner de Upgrade para usuários FREE que atingiram o limite */}
+                    {isFreeUser && hasReachedLimit && (
+                      <div className="bg-purple-900/20 border border-purple-500/30 p-6 rounded-2xl flex items-start gap-4">
+                        <svg className="w-6 h-6 text-purple-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-bold text-purple-100 mb-1">Limite do Plano Gratuito Atingido</h4>
+                          <p className="text-xs text-purple-300/80 mb-3">
+                            Você utilizou seu <span className="font-bold">1 feedback gratuito</span>. Assine o PratiquePRO para ter direito a <span className="font-bold">5 feedbacks detalhados por mês</span>!
+                          </p>
+                          <button
+                            onClick={() => setActiveTab('profile')}
+                            className="bg-purple-600 hover:bg-purple-700 text-white text-xs px-4 py-2 rounded-lg font-bold transition-all"
+                          >
+                            Ver Planos de Assinatura
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/30 p-8 rounded-3xl shadow-xl flex flex-col justify-center">
+                        <h3 className="text-xl font-black mb-4 flex items-center gap-2">
+                          <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                          Resumo do seu Aprendizado
+                        </h3>
+                        <p className="text-lg text-gray-200 leading-relaxed italic">"{detailedFeedback.resumo_geral}"</p>
+                      </div>
+
+                      <div className="bg-gray-800 p-6 rounded-3xl border border-gray-700 shadow-xl flex flex-col items-center">
+                        <h3 className="text-xs font-black uppercase text-gray-500 mb-2 tracking-widest">Gráfico de Radar de Competências</h3>
+                        <SimpleRadarChart metrics={radarMetrics} />
                       </div>
                     </div>
-                  )}
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-gradient-to-br from-blue-900/30 to-purple-900/30 border border-blue-500/30 p-8 rounded-3xl shadow-xl flex flex-col justify-center">
-                      <h3 className="text-xl font-black mb-4 flex items-center gap-2">
-                        <svg className="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Resumo do seu Aprendizado
-                      </h3>
-                      <p className="text-lg text-gray-200 leading-relaxed italic">"{detailedFeedback.resumo_geral}"</p>
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {detailedFeedback.metricas_atuais && Object.entries(detailedFeedback.metricas_atuais).map(([key, val]) => {
+                        const metric = val as MetricDetail;
+                        const label = key.replace(/_/g, ' ');
+                        let score = Number(metric?.score);
+                        if (isNaN(score) || score === 0) score = 50;
 
-                    <div className="bg-gray-800 p-6 rounded-3xl border border-gray-700 shadow-xl flex flex-col items-center">
-                      <h3 className="text-xs font-black uppercase text-gray-500 mb-2 tracking-widest">Gráfico de Radar de Competências</h3>
-                      <SimpleRadarChart metrics={radarMetrics} />
-                    </div>
-                  </div>
+                        const rawTendencia = String(metric?.tendencia || 'estavel').toLowerCase();
+                        const tendencia = rawTendencia.includes('evolu') || rawTendencia.includes('melhora') ? 'evoluindo' :
+                          rawTendencia.includes('regred') || rawTendencia.includes('queda') ? 'regredindo' : 'estavel';
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {detailedFeedback.metricas_atuais && Object.entries(detailedFeedback.metricas_atuais).map(([key, val]) => {
-                      const metric = val as MetricDetail;
-                      const label = key.replace(/_/g, ' ');
-                      let score = Number(metric?.score);
-                      if (isNaN(score) || score === 0) score = 50;
+                        const color = score > 70 ? 'text-green-400' : score > 40 ? 'text-yellow-400' : 'text-red-400';
+                        const chartColor = score > 70 ? '#4ade80' : score > 40 ? '#facc15' : '#f87171';
 
-                      const rawTendencia = String(metric?.tendencia || 'estavel').toLowerCase();
-                      const tendencia = rawTendencia.includes('evolu') || rawTendencia.includes('melhora') ? 'evoluindo' :
-                        rawTendencia.includes('regred') || rawTendencia.includes('queda') ? 'regredindo' : 'estavel';
-
-                      const color = score > 70 ? 'text-green-400' : score > 40 ? 'text-yellow-400' : 'text-red-400';
-                      const chartColor = score > 70 ? '#4ade80' : score > 40 ? '#facc15' : '#f87171';
-
-                      return (
-                        <div key={key} className="bg-gray-800 p-6 rounded-2xl border border-gray-700 transition-all hover:border-gray-600 group">
-                          <div className="flex justify-between items-start mb-4">
-                            <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider group-hover:text-white transition-colors">{label}</h4>
-                            <div className="flex items-center gap-1">
-                              <span className={`text-[10px] font-bold uppercase ${tendencia === 'evoluindo' ? 'text-green-400' : tendencia === 'regredindo' ? 'text-red-400' : 'text-gray-400'}`}>{tendencia}</span>
-                              <TrendIcon tendencia={tendencia} />
+                        return (
+                          <div key={key} className="bg-gray-800 p-6 rounded-2xl border border-gray-700 transition-all hover:border-gray-600 group">
+                            <div className="flex justify-between items-start mb-4">
+                              <h4 className="text-xs font-black uppercase text-gray-400 tracking-wider group-hover:text-white transition-colors">{label}</h4>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-[10px] font-bold uppercase ${tendencia === 'evoluindo' ? 'text-green-400' : tendencia === 'regredindo' ? 'text-red-400' : 'text-gray-400'}`}>{tendencia}</span>
+                                <TrendIcon tendencia={tendencia} />
+                              </div>
                             </div>
+                            <div className="flex items-end gap-2 mb-4">
+                              <span className={`text-4xl font-black ${color}`}>{score}</span>
+                              <span className="text-gray-600 text-xs mb-1">/ 100</span>
+                            </div>
+                            <p className="text-xs text-gray-400 leading-relaxed">{(detailedFeedback.feedbacks || {} as any)[key] || "Feedback indisponível."}</p>
                           </div>
-                          <div className="flex items-end gap-2 mb-4">
-                            <span className={`text-4xl font-black ${color}`}>{score}</span>
-                            <span className="text-gray-600 text-xs mb-1">/ 100</span>
-                          </div>
-                          <p className="text-xs text-gray-400 leading-relaxed">{(detailedFeedback.feedbacks || {} as any)[key] || "Feedback indisponível."}</p>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="bg-red-500/10 p-8 rounded-3xl border border-red-500/30 text-center">
-                  <p className="text-red-400">Não foi possível carregar o feedback detalhado agora. Tente novamente em alguns instantes.</p>
-                  <button onClick={loadFeedback} className="mt-4 bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-xl text-sm font-bold">Tentar novamente</button>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+                ) : (
+                  <div className="bg-red-500/10 p-8 rounded-3xl border border-red-500/30 text-center">
+                    <p className="text-red-400">Não foi possível carregar o feedback detalhado agora. Tente novamente em alguns instantes.</p>
+                    <button onClick={loadFeedback} className="mt-4 bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-xl text-sm font-bold">Tentar novamente</button>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        }
 
         {
           activeTab === 'profile' && (

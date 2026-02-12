@@ -93,6 +93,7 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   const error = localError || hookError;
 
   const getStatusMessage = () => {
+    if (showCreditModal) return "Seus créditos acabaram! Finalizando...";
     if (isFinishing) return "Finalizando...";
     if (isReconnecting) return "Reconectando...";
     if (isConnected) {
@@ -106,6 +107,8 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
 
   const statusMessage = getStatusMessage();
 
+  const isFinishingRef = useRef(false);
+
   useEffect(() => {
     if (!hasStarted || !isConnected || isFinishing || showCreditModal) return;
     const timer = setInterval(() => {
@@ -113,9 +116,12 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
         const newVal = prev - 1;
         if (newVal <= 0) {
           clearInterval(timer);
-          onUpdateCredits(0);
-          handleFinish(0);
-          setShowCreditModal(true);
+          // Only trigger finish if not already finishing
+          if (!isFinishingRef.current) {
+            onUpdateCredits(0);
+            setShowCreditModal(true);
+            handleFinish(0);
+          }
           return 0;
         }
         return newVal;
@@ -203,7 +209,8 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
   };
 
   const handleFinish = async (forcedCredits?: number) => {
-    if (isFinishing) return;
+    if (isFinishing || isFinishingRef.current) return;
+    isFinishingRef.current = true;
     setIsFinishing(true);
 
     const finalMinutes = typeof forcedCredits === 'number' ? forcedCredits : Math.max(0, Math.floor(remainingSeconds / 60));
@@ -264,7 +271,16 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
           </div>
 
           <div className="mt-8 h-12 flex flex-col items-center">
-            {statusMessage && (
+            {showCreditModal && (
+              <div className="bg-red-500/90 backdrop-blur-md px-6 py-3 rounded-xl border border-red-400/50 animate-bounce shadow-2xl z-50 mt-4">
+                <p className="text-white font-bold text-center">
+                  Seus créditos acabaram!<br />
+                  <span className="text-xs font-normal">Encerrando e salvando sua sessão...</span>
+                </p>
+              </div>
+            )}
+
+            {!showCreditModal && statusMessage && (
               <div className="bg-black/40 backdrop-blur-md px-6 py-2 rounded-full border border-white/5 animate-fade-in shadow-xl">
                 <p className="text-sm font-medium text-blue-100 tracking-wide flex items-center gap-2">
                   {(isConnected && !isTalking && !isFinishing) || isReconnecting ? (
