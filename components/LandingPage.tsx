@@ -37,9 +37,50 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
           >
             Começar Teste Grátis
           </button>
-          <span className="text-sm font-medium text-slate-500">Experimente gratuitamente. Evolua de verdade.</span>
+          <span className="text-sm font-medium text-slate-500">Ganhe 10 minutos grátis agora. Sem cartão de crédito.</span>
         </div>
       </header>
+
+      {/* Pricing Section */}
+      <section className="py-24 bg-slate-950 border-t border-slate-900 text-center">
+        <div className="max-w-4xl mx-auto px-6">
+          <h2 className="text-3xl md:text-5xl font-black text-white mb-6">
+            Plano Premium
+          </h2>
+
+          <p className="text-slate-400 text-lg mb-10">
+            Ganhe 10 minutos grátis para testar agora.
+            Se gostar, continue com até 300 minutos de conversação real por mês
+            (5 horas de prática por voz) com feedback inteligente incluído.
+          </p>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-10 inline-block">
+            <div className="text-5xl font-black text-white mb-2">
+              R$ 49,90
+            </div>
+            <div className="text-slate-500 mb-6">
+              por mês
+            </div>
+
+            <ul className="text-left text-slate-300 space-y-3 mb-8">
+              <li>✔️ Até 300 minutos mensais</li>
+              <li>✔️ Conversas ilimitadas por sessão</li>
+              <li>✔️ Relatórios de evolução</li>
+              <li>✔️ Todos os avatares liberados</li>
+              <li>✔️ Recarregue minutos via PIX quando quiser</li>
+              <li>✔️ Menos de R$ 1,70 por dia</li>
+              <li>✔️ Cancele quando quiser. Sem fidelidade.</li>
+            </ul>
+
+            <button
+              onClick={onStart}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-8 py-4 rounded-2xl transition-all"
+            >
+              Começar Agora
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Why PratiquePRO */}
       <section className="bg-slate-900/50 py-24 border-y border-slate-900">
