@@ -110,7 +110,6 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
                         3. Use entre 60 e 90 palavras no total.
                         4. Use tópicos (bullet points) para listar erros e dicas.
                         5. Cite obrigatoriamente um ponto forte e um ponto de correção gramatical do diálogo.
-                        5. Cite obrigatoriamente um ponto forte e um ponto de correção gramatical do diálogo.
                         6. Dê dicas práticas de estudo.
                         7. IMPORTANTE: Se o diálogo for muito curto (apenas saudações ou frases simples), dê notas BAIXAS (abaixo de 40) e mencione que falta profundidade. Avalie a CAPACIDADE demonstrada, não apenas a ausência de erros.
                         
@@ -130,7 +129,7 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
           }]
         }],
         generationConfig: {
-          maxOutputTokens: 768, // Reduzido para economia extrema
+          maxOutputTokens: 350, // Reduzido para economia extrema
           temperature: 0.7,
           responseMimeType: "application/json"
         },
