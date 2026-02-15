@@ -381,7 +381,15 @@ export const useLiveAvatar = ({ avatarConfig, userName, previousContext, onTrans
 
       sessionPromiseRef.current = currentSessionPromise;
     } catch (err: any) {
-      setError(err.message || "Falha na conexão.");
+      let errorMessage = err.message || "Falha na conexão.";
+
+      if (errorMessage.includes("Permission denied") || errorMessage.includes("Permission dismissed") || errorMessage.includes("not allowed")) {
+        errorMessage = "Permissão de microfone negada. Por favor, habilite o microfone no navegador.";
+      } else if (errorMessage.includes("Device in use")) {
+        errorMessage = "Microfone em uso por outro app.";
+      }
+
+      setError(errorMessage);
       isConnectingRef.current = false;
       disconnect(false);
     }
