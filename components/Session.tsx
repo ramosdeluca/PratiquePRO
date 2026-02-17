@@ -118,7 +118,6 @@ const Session: React.FC<SessionProps> = ({ user, avatar, onComplete, onCancel, o
           clearInterval(timer);
           // Only trigger finish if not already finishing
           if (!isFinishingRef.current) {
-            onUpdateCredits(0);
             setShowCreditModal(true);
             handleFinish(0);
           }
