@@ -106,12 +106,12 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
             text: `Aja como Native English Teacher. Analise o transcript e forneça o feedback no formato JSON.
                         REGRAS DE FEEDBACK:
                         1. LINGUAGEM OBRIGATÓRIA: Português (pt-BR).
-                        2. ESCALA DE NOTAS: Use obrigatoriamente 0 a 100 (ex: 85 para 85%). NUNCA use escala 0-10.
-                        3. Use entre 60 e 90 palavras no total.
-                        4. Use tópicos (bullet points) para listar erros e dicas.
-                        5. Cite obrigatoriamente um ponto forte e um ponto de correção gramatical do diálogo.
-                        6. Dê dicas práticas de estudo.
-                        7. IMPORTANTE: Se o diálogo for muito curto (apenas saudações ou frases simples), dê notas BAIXAS (abaixo de 40) e mencione que falta profundidade. Avalie a CAPACIDADE demonstrada, não apenas a ausência de erros.
+                        2. ESCALA DE NOTAS: Use 0 a 100.
+                        3. SEJA ULTRACONCISO. Use no MÁXIMO 40 palavras no feedback.
+                        4. Use tópicos curtos.
+                        5. Cite 1 acerto e 1 correção rápidos.
+                        6. Dê 1 dica prática curta.
+                        7. IMPORTANTE: Se o diálogo for curto, dê notas BAIXAS e mencione a falta de profundidade. Avalie a CAPACIDADE.
                         
                         Transcript: ${prunedTranscript}
                         
@@ -129,12 +129,12 @@ export const evaluateSession = async (transcript: string): Promise<Omit<SessionR
           }]
         }],
         generationConfig: {
-          maxOutputTokens: 350, // Reduzido para economia extrema
+          maxOutputTokens: 200, // Reduzido para economia extrema
           temperature: 0.7,
           responseMimeType: "application/json"
         },
         systemInstruction: {
-          parts: [{ text: "Você é um mentor rigoroso de inglês. Nunca forneça respostas curtas ou genéricas. Use a escala total de 0 a 100 para refletir o desempenho real." }]
+          parts: [{ text: "Mentor rigoroso. Seja direto e ultraconciso. Nunca seja prolixo. Use escala 0-100." }]
         }
       });
 
@@ -200,25 +200,25 @@ export const generateDetailedFeedback = async (currentTranscript: string, histor
                     Histórico: ${JSON.stringify(hist)}
                     
                     REGRAS:
-                    1. Preencha TODAS as métricas: fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca.
-                    2. Dê notas técnicas reais.
-                    3. Feedbacks e resumo DEVEM ser objetivos, diretos e em Português.
-                    4. Seja conciso para economizar tokens.
+                    1. Preencha TODAS as métricas.
+                    2. Notas técnicas reais.
+                    3. Feedbacks e resumo DEVEM ser EXTREMAMENTE curtos, diretos e em pt-BR.
+                    4. Economize tokens ao máximo (máx 15 palavras por métrica).
                     
                     JSON: {
                       "metricas_atuais": { "[fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca]": {"score":0, "tendencia":"evoluindo"|"estavel"|"regredindo"} },
-                      "feedbacks": { "[fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca]": "texto objetivo e direto" },
-                      "resumo_geral": "análise concisa",
+                      "feedbacks": { "[fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca]": "texto curto e direto" },
+                      "resumo_geral": "resumo de 1 frase",
                       "dados_grafico_historico": { "[fluencia, vocabulario, precisao_gramatical, clareza_pronuncia, coerencia, confianca]": [{"data":"...", "score":0}] }
                     }` }]
         }],
         generationConfig: {
-          maxOutputTokens: 800, // Aumentado para garantir JSON completo sem custo Pro
+          maxOutputTokens: 500, // Otimizado para economia extrema
           temperature: 0.1,
           responseMimeType: "application/json"
         },
         systemInstruction: {
-          parts: [{ text: "Você é um Consultor Pedagógico. Gere relatórios ricos e evite textos curtos. Garanta integridade total do JSON." }]
+          parts: [{ text: "Consultor Pedagógico. Gere relatórios ultraconcisos. Nunca seja prolixo. Garanta integridade total do JSON." }]
         }
       });
 
