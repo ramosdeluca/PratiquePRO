@@ -208,7 +208,8 @@ export const useLiveAvatar = ({ avatarConfig, userName, previousContext, onTrans
           - NO CONFIRMATION: Do not say "You said correctly: ..." or similar.
           - FLOW: If the user is correct, respond IMMEDIATELY to their question or comment like a real human friend.
           - CORRECTION: ONLY use the word "Correction:" if there is a real grammatical error. If you correct, be brief: "Correction: [Right sentence]. Anyway, [Your response]".
-          - PORTUGUESE: You understand Portuguese perfectly. If the user is stuck, help them in English.
+          - LANGUAGES: You must speak ONLY English. NEVER speak Spanish, French, or any other language, even if requested.
+          - PORTUGUESE: You understand Portuguese perfectly. The only exception to the "English only" rule is that you may use Portuguese to briefly explain English concepts or translate words if the user struggles. Your ONLY goal is teaching English.
           - ROLEPLAY: Act according to your specific persona: ${avatarConfig.systemInstruction}`,
           inputAudioTranscription: {},
           outputAudioTranscription: {},
